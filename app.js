@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const apiKeyInput = document.getElementById("apiKey");
   const rememberKeyCheckbox = document.getElementById("rememberKey");
   const modelSelect = document.getElementById("modelSelect");
+  const resetStorageBtn = document.getElementById("resetStorageBtn");
 
   const seoForm = document.getElementById("seoForm");
   const keywordInput = document.getElementById("keyword");
@@ -64,10 +65,21 @@ document.addEventListener("DOMContentLoaded", () => {
     window.localStorage.setItem(STORAGE_KEY_MODEL, modelSelect.value);
   });
 
+  /* ---------- Reset localStorage ---------- */
+
+  resetStorageBtn.addEventListener("click", () => {
+    window.localStorage.removeItem(STORAGE_KEY_API);
+    window.localStorage.removeItem(STORAGE_KEY_MODEL);
+    apiKeyInput.value = "";
+    rememberKeyCheckbox.checked = false;
+    statusEl.classList.remove("error", "loading");
+    statusEl.textContent = "Local storage cleared.";
+  });
+
   /* ---------- Copy Markdown ---------- */
 
   copyBtn.addEventListener("click", () => {
-    statusEl.classList.remove("error");
+    statusEl.classList.remove("error", "loading");
 
     const text = outputArea.value;
     if (!text || !text.trim()) {
@@ -131,14 +143,14 @@ document.addEventListener("DOMContentLoaded", () => {
   clearBtn.addEventListener("click", () => {
     outputArea.value = "";
     statusEl.textContent = "";
-    statusEl.classList.remove("error");
+    statusEl.classList.remove("error", "loading");
   });
 
   /* ---------- Generate article ---------- */
 
   generateBtn.addEventListener("click", async () => {
     statusEl.textContent = "";
-    statusEl.classList.remove("error");
+    statusEl.classList.remove("error", "loading");
 
     const apiKey = apiKeyInput.value.trim();
     if (!apiKey) {
@@ -200,6 +212,7 @@ document.addEventListener("DOMContentLoaded", () => {
       generateBtn.disabled = true;
       generateBtn.textContent = "Generating...";
       statusEl.textContent = "Contacting OpenRouter...";
+      statusEl.classList.add("loading");
 
       const response = await fetch(OPENROUTER_URL, {
         method: "POST",
@@ -230,9 +243,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       outputArea.value = content;
       statusEl.textContent = "Article generated. You can now copy the Markdown.";
+      statusEl.classList.remove("loading");
     } catch (error) {
       console.error(error);
       statusEl.textContent = `Error: ${error.message}`;
+      statusEl.classList.remove("loading");
       statusEl.classList.add("error");
     } finally {
       generateBtn.disabled = false;

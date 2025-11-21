@@ -4,9 +4,10 @@
   <meta charset="UTF-8">
   <title>OpenSEO Studio – AI-powered SEO article generator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
   <meta name="description" content="OpenSEO Studio is a fully client-side SEO article generator powered by OpenRouter. Bring your own API key, keep full control, and generate clean Markdown content.">
+  <meta name="color-scheme" content="dark light">
   <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body>
   <header class="topbar">
@@ -56,6 +57,10 @@
         <option value="google/gemini-2.0-flash">Gemini 2.0 Flash</option>
         <option value="deepseek/deepseek-chat">DeepSeek Chat</option>
       </select>
+
+      <button type="button" id="resetStorageBtn" class="btn-ghost menu-reset">
+        Reset local storage
+      </button>
 
       <p class="menu-note">
         OpenSEO Studio is 100% client-side.  

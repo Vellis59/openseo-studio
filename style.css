@@ -316,6 +316,14 @@ body {
   background: rgba(15, 23, 42, 0.9);
 }
 
+/* Button in menu */
+
+.menu-reset {
+  display: block;
+  width: 100%;
+  margin-top: 0.8rem;
+}
+
 /* Status */
 
 .status-text {
@@ -327,6 +335,10 @@ body {
 
 .status-text.error {
   color: var(--danger);
+}
+
+.status-text.loading {
+  color: var(--accent-secondary);
 }
 
 /* Output */

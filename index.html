@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OpenSEO Studio – AI-powered SEO article generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <meta name="description" content="OpenSEO Studio is a fully client-side SEO article generator powered by OpenRouter. Bring your own API key, keep full control, and generate clean Markdown content.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo-circle">OS</div>
+      <div class="topbar-title">
+        <span class="title-main">OpenSEO Studio</span>
+        <span class="title-sub">Static, BYOK, SEO-focused</span>
+      </div>
+    </div>
+
+    <button class="menu-toggle" id="menuToggle" aria-label="Open settings">
+      ☰
+    </button>
+
+    <div class="menu-panel" id="menuPanel" aria-hidden="true">
+      <h2 class="menu-title">Settings</h2>
+
+      <label class="field-label" for="apiKey">
+        OpenRouter API key
+        <span class="field-help">Stored only in your browser if you choose so.</span>
+      </label>
+      <input
+        type="password"
+        id="apiKey"
+        class="field-input"
+        placeholder="sk-or-..."
+        autocomplete="off"
+      >
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="rememberKey">
+        <span>Remember API key in this browser</span>
+      </label>
+
+      <label class="field-label" for="modelSelect">
+        Default model
+        <span class="field-help">
+          You can change this at any time. All calls go through OpenRouter.
+        </span>
+      </label>
+      <select id="modelSelect" class="field-input">
+        <option value="openai/gpt-4.1-mini">GPT-4.1 Mini (OpenAI)</option>
+        <option value="openai/gpt-4.1">GPT-4.1 (OpenAI)</option>
+        <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
+        <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+        <option value="google/gemini-2.0-flash">Gemini 2.0 Flash</option>
+        <option value="deepseek/deepseek-chat">DeepSeek Chat</option>
+      </select>
+
+      <p class="menu-note">
+        OpenSEO Studio is 100% client-side.  
+        Your API key never leaves your browser except when calling OpenRouter directly.
+      </p>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <h1>SEO article generator for people who hate bloated tools</h1>
+      <p class="hero-text">
+        OpenSEO Studio is a fully static, BYOK SEO writing tool.  
+        No backend, no account, no tracking. Just your API key and clean Markdown output.
+      </p>
+      <div class="hero-badges">
+        <span class="badge">100% front-end</span>
+        <span class="badge">BYOK via OpenRouter</span>
+        <span class="badge">Markdown only</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">Generate an SEO article</h2>
+      <p class="card-subtitle">
+        Enter your keyword, choose style and language, and let your model do the work.
+      </p>
+
+      <form id="seoForm" novalidate>
+        <label class="field-label" for="keyword">
+          Main keyword
+        </label>
+        <input
+          type="text"
+          id="keyword"
+          class="field-input"
+          placeholder="e.g. self-hosting a Ghost blog with Docker"
+          required
+        >
+
+        <div class="grid-3">
+          <div>
+            <label class="field-label" for="languageSelect">
+              Target language
+            </label>
+            <select id="languageSelect" class="field-input">
+              <option value="French">French</option>
+              <option value="English" selected>English</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="field-label" for="toneSelect">
+              Tone
+            </label>
+            <select id="toneSelect" class="field-input">
+              <option value="clear and accessible" selected>Clear and accessible</option>
+              <option value="friendly and slightly edgy">Friendly and slightly edgy</option>
+              <option value="professional and neutral">Professional and neutral</option>
+              <option value="highly technical">Highly technical</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="field-label" for="lengthSelect">
+              Article length
+            </label>
+            <select id="lengthSelect" class="field-input">
+              <option value="short (~800 words)">Short (~800 words)</option>
+              <option value="standard (~1500 words)" selected>Standard (~1500 words)</option>
+              <option value="long (~2500 words)">Long (~2500 words)</option>
+              <option value="ultra-long (~3000 words)">Very long (~3000 words)</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="field-label" for="extraInput">
+          Additional constraints (optional)
+          <span class="field-help">
+            For example: add a clickable table of contents, avoid cliché intros, no emojis, add a final checklist, etc.
+          </span>
+        </label>
+        <input
+          type="text"
+          id="extraInput"
+          class="field-input"
+          placeholder="e.g. include a table of contents, no cliché intro, no emojis..."
+        >
+
+        <div class="actions-row">
+          <button type="button" id="generateBtn" class="btn-primary">
+            Generate article
+          </button>
+          <button type="button" id="copyBtn" class="btn-secondary">
+            Copy Markdown
+          </button>
+          <button type="button" id="clearBtn" class="btn-ghost">
+            Clear output
+          </button>
+        </div>
+
+        <p id="status" class="status-text"></p>
+
+        <label class="field-label" for="output">
+          Result (Markdown only)
+        </label>
+        <textarea
+          id="output"
+          class="output-area"
+          spellcheck="false"
+          placeholder="Your article will appear here as pure Markdown..."
+        ></textarea>
+      </form>
+    </section>
+
+    <section class="card card-secondary">
+      <h2 class="card-title">How it works</h2>
+      <ol class="steps-list">
+        <li>Open the settings menu and paste your OpenRouter API key.</li>
+        <li>Select your preferred model.</li>
+        <li>Enter a keyword and configure tone, length, and language.</li>
+        <li>Click “Generate article” and wait for the response.</li>
+        <li>Copy the Markdown and drop it into your CMS, Obsidian, or static site.</li>
+      </ol>
+      <p class="small-note">
+        Everything runs in your browser. There is no backend and no database.  
+        You are responsible for your OpenRouter usage and billing.
+      </p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p class="footer-text">
+      OpenSEO Studio – fully static, MIT-licensed, BYOK SEO writing tool.
+    </p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -22,38 +22,52 @@ document.addEventListener("DOMContentLoaded", () => {
   const statusEl = document.getElementById("status");
   const outputArea = document.getElementById("output");
 
+  const presetSelect = document.getElementById("presetSelect");
+  const promptModeSelect = document.getElementById("promptMode");
+  const tocCheckbox = document.getElementById("tocCheckbox");
+
+  const onboarding = document.getElementById("onboarding");
+  const onboardingClose = document.getElementById("onboardingClose");
+
   const STORAGE_KEY_API = "openseo_openrouter_key";
   const STORAGE_KEY_MODEL = "openseo_default_model";
 
   /* ---------- Menu toggle ---------- */
 
-  menuToggle.addEventListener("click", () => {
-    const isOpen = menuPanel.classList.contains("open");
-    if (isOpen) {
-      menuPanel.classList.remove("open");
-      menuPanel.setAttribute("aria-hidden", "true");
-    } else {
-      menuPanel.classList.add("open");
-      menuPanel.setAttribute("aria-hidden", "false");
-    }
-  });
+  if (menuToggle && menuPanel) {
+    menuToggle.addEventListener("click", () => {
+      const isOpen = menuPanel.classList.contains("open");
+      if (isOpen) {
+        menuPanel.classList.remove("open");
+        menuPanel.setAttribute("aria-hidden", "true");
+      } else {
+        menuPanel.classList.add("open");
+        menuPanel.setAttribute("aria-hidden", "false");
+      }
+    });
 
-  document.addEventListener("click", (event) => {
-    if (!menuPanel.classList.contains("open")) return;
-    const isInsidePanel = menuPanel.contains(event.target);
-    const isToggle = menuToggle.contains(event.target);
-    if (!isInsidePanel && !isToggle) {
-      menuPanel.classList.remove("open");
-      menuPanel.setAttribute("aria-hidden", "true");
-    }
-  });
+    document.addEventListener("click", (event) => {
+      if (!menuPanel.classList.contains("open")) return;
+      const isInsidePanel = menuPanel.contains(event.target);
+      const isToggle = menuToggle.contains(event.target);
+      if (!isInsidePanel && !isToggle) {
+        menuPanel.classList.remove("open");
+        menuPanel.setAttribute("aria-hidden", "true");
+      }
+    });
+  }
 
   /* ---------- Init from localStorage ---------- */
 
   const storedKey = window.localStorage.getItem(STORAGE_KEY_API);
   if (storedKey) {
     apiKeyInput.value = storedKey;
-    rememberKeyCheckbox.checked = true;
+    if (rememberKeyCheckbox) {
+      rememberKeyCheckbox.checked = true;
+    }
+  } else if (onboarding) {
+    // Onboarding: pas de clé connue → montrer l’overlay
+    onboarding.classList.remove("hidden");
   }
 
   const storedModel = window.localStorage.getItem(STORAGE_KEY_MODEL);
@@ -61,47 +75,128 @@ document.addEventListener("DOMContentLoaded", () => {
     modelSelect.value = storedModel;
   }
 
-  modelSelect.addEventListener("change", () => {
-    window.localStorage.setItem(STORAGE_KEY_MODEL, modelSelect.value);
-  });
+  if (modelSelect) {
+    modelSelect.addEventListener("change", () => {
+      window.localStorage.setItem(STORAGE_KEY_MODEL, modelSelect.value);
+    });
+  }
+
+  /* ---------- Onboarding ---------- */
+
+  if (onboarding && onboardingClose) {
+    onboardingClose.addEventListener("click", () => {
+      onboarding.classList.add("hidden");
+      // Ouvrir le panel de settings pour guider l’utilisateur
+      if (menuPanel) {
+        menuPanel.classList.add("open");
+        menuPanel.setAttribute("aria-hidden", "false");
+      }
+      if (apiKeyInput) {
+        apiKeyInput.focus();
+      }
+    });
+  }
+
+  /* ---------- Presets ---------- */
+
+  const PRESETS = {
+    guide: {
+      tone: "clear and accessible",
+      length: "standard (~1500 words)",
+      extra: "Write as a step-by-step guide."
+    },
+    long: {
+      tone: "friendly and slightly edgy",
+      length: "long (~2500 words)",
+      extra: ""
+    },
+    tutorial: {
+      tone: "professional and neutral",
+      length: "standard (~1500 words)",
+      extra: "Write as a complete tutorial with numbered steps."
+    },
+    comparison: {
+      tone: "professional and neutral",
+      length: "standard (~1500 words)",
+      extra: "Include a Markdown comparison table."
+    },
+    listicle: {
+      tone: "clear and accessible",
+      length: "short (~800 words)",
+      extra: "Write in listicle format."
+    },
+    news: {
+      tone: "professional and neutral",
+      length: "short (~800 words)",
+      extra: "Write in a concise, news-like style."
+    }
+  };
+
+  if (presetSelect) {
+    presetSelect.addEventListener("change", () => {
+      const preset = PRESETS[presetSelect.value];
+      if (!preset) return;
+
+      // Appliquer le preset sur les champs correspondants
+      if (toneSelect) {
+        toneSelect.value = preset.tone;
+      }
+      if (lengthSelect) {
+        lengthSelect.value = preset.length;
+      }
+      if (extraInput) {
+        extraInput.value = preset.extra;
+      }
+    });
+  }
 
   /* ---------- Reset localStorage ---------- */
 
-  resetStorageBtn.addEventListener("click", () => {
-    window.localStorage.removeItem(STORAGE_KEY_API);
-    window.localStorage.removeItem(STORAGE_KEY_MODEL);
-    apiKeyInput.value = "";
-    rememberKeyCheckbox.checked = false;
-    statusEl.classList.remove("error", "loading");
-    statusEl.textContent = "Local storage cleared.";
-  });
+  if (resetStorageBtn) {
+    resetStorageBtn.addEventListener("click", () => {
+      window.localStorage.removeItem(STORAGE_KEY_API);
+      window.localStorage.removeItem(STORAGE_KEY_MODEL);
+      apiKeyInput.value = "";
+      if (rememberKeyCheckbox) {
+        rememberKeyCheckbox.checked = false;
+      }
+      statusEl.classList.remove("error", "loading");
+      statusEl.textContent = "Local storage cleared.";
+
+      if (onboarding) {
+        onboarding.classList.remove("hidden");
+      }
+    });
+  }
 
   /* ---------- Copy Markdown ---------- */
 
-  copyBtn.addEventListener("click", () => {
-    statusEl.classList.remove("error", "loading");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", () => {
+      statusEl.classList.remove("error", "loading");
 
-    const text = outputArea.value;
-    if (!text || !text.trim()) {
-      statusEl.textContent = "Nothing to copy: output is empty.";
-      statusEl.classList.add("error");
-      return;
-    }
+      const text = outputArea.value;
+      if (!text || !text.trim()) {
+        statusEl.textContent = "Nothing to copy: output is empty.";
+        statusEl.classList.add("error");
+        return;
+      }
 
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard
-        .writeText(text)
-        .then(() => {
-          statusEl.textContent = "Markdown copied to clipboard.";
-        })
-        .catch((err) => {
-          console.error("clipboard.writeText error:", err);
-          fallbackCopy(text);
-        });
-    } else {
-      fallbackCopy(text);
-    }
-  });
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard
+          .writeText(text)
+          .then(() => {
+            statusEl.textContent = "Markdown copied to clipboard.";
+          })
+          .catch((err) => {
+            console.error("clipboard.writeText error:", err);
+            fallbackCopy(text);
+          });
+      } else {
+        fallbackCopy(text);
+      }
+    });
+  }
 
   function fallbackCopy(text) {
     try {
@@ -140,121 +235,176 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* ---------- Clear output ---------- */
 
-  clearBtn.addEventListener("click", () => {
-    outputArea.value = "";
-    statusEl.textContent = "";
-    statusEl.classList.remove("error", "loading");
-  });
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      outputArea.value = "";
+      statusEl.textContent = "";
+      statusEl.classList.remove("error", "loading");
+    });
+  }
 
   /* ---------- Generate article ---------- */
 
-  generateBtn.addEventListener("click", async () => {
-    statusEl.textContent = "";
-    statusEl.classList.remove("error", "loading");
+  if (generateBtn) {
+    generateBtn.addEventListener("click", async () => {
+      statusEl.textContent = "";
+      statusEl.classList.remove("error", "loading");
 
-    const apiKey = apiKeyInput.value.trim();
-    if (!apiKey) {
-      statusEl.textContent = "Please provide your OpenRouter API key in the settings menu.";
-      statusEl.classList.add("error");
-      menuPanel.classList.add("open");
-      menuPanel.setAttribute("aria-hidden", "false");
-      return;
-    }
+      const apiKey = apiKeyInput.value.trim();
+      if (!apiKey) {
+        statusEl.textContent = "Please provide your OpenRouter API key in the settings menu.";
+        statusEl.classList.add("error");
+        if (menuPanel) {
+          menuPanel.classList.add("open");
+          menuPanel.setAttribute("aria-hidden", "false");
+        }
+        if (onboarding) {
+          onboarding.classList.remove("hidden");
+        }
+        return;
+      }
 
-    const keyword = keywordInput.value.trim();
-    if (!keyword) {
-      statusEl.textContent = "Please enter a main keyword.";
-      statusEl.classList.add("error");
-      keywordInput.focus();
-      return;
-    }
+      const keyword = keywordInput.value.trim();
+      if (!keyword) {
+        statusEl.textContent = "Please enter a main keyword.";
+        statusEl.classList.add("error");
+        keywordInput.focus();
+        return;
+      }
 
-    const language = languageSelect.value;
-    const tone = toneSelect.value;
-    const length = lengthSelect.value;
-    const extra = extraInput.value.trim();
-    const model = modelSelect.value;
+      const language = languageSelect.value;
+      const tone = toneSelect.value;
+      const length = lengthSelect.value;
+      const extra = extraInput.value.trim();
+      const model = modelSelect.value;
 
-    if (rememberKeyCheckbox.checked) {
-      window.localStorage.setItem(STORAGE_KEY_API, apiKey);
-    } else {
-      window.localStorage.removeItem(STORAGE_KEY_API);
-    }
+      if (rememberKeyCheckbox && rememberKeyCheckbox.checked) {
+        window.localStorage.setItem(STORAGE_KEY_API, apiKey);
+      } else {
+        window.localStorage.removeItem(STORAGE_KEY_API);
+      }
 
-    const userPrompt = buildUserPrompt({
-      keyword,
-      language,
-      tone,
-      length,
-      extra,
-    });
-
-    const body = {
-      model,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a senior SEO content writer. You write long-form, well-structured, " +
-            "readable blog posts that follow on-page SEO best practices. You only output Markdown " +
-            "(headings, lists, tables when useful), with no YAML front matter and no raw HTML. " +
-            "Avoid emojis and generic, overused AI-style introductions.",
-        },
-        {
-          role: "user",
-          content: userPrompt,
-        },
-      ],
-      temperature: 0.7,
-    };
-
-    try {
-      generateBtn.disabled = true;
-      generateBtn.textContent = "Generating...";
-      statusEl.textContent = "Contacting OpenRouter...";
-      statusEl.classList.add("loading");
-
-      const response = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
+      const userPrompt = buildUserPrompt({
+        keyword,
+        language,
+        tone,
+        length,
+        extra
       });
 
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`API error ${response.status}: ${text}`);
+      const body = {
+        model,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a senior SEO content writer. You write long-form, well-structured, " +
+              "readable blog posts that follow on-page SEO best practices. You only output Markdown " +
+              "(headings, lists, tables when useful), with no YAML front matter and no raw HTML. " +
+              "Avoid emojis and generic, overused AI-style introductions."
+          },
+          {
+            role: "user",
+            content: userPrompt
+          }
+        ],
+        temperature: 0.7
+      };
+
+      try {
+        generateBtn.disabled = true;
+        generateBtn.textContent = "Generating...";
+
+        if (tocCheckbox && tocCheckbox.checked) {
+          statusEl.textContent = "TOC enabled. Contacting OpenRouter...";
+        } else {
+          statusEl.textContent = "Contacting OpenRouter...";
+        }
+        statusEl.classList.add("loading");
+        statusEl.classList.remove("error");
+
+        const response = await fetch(OPENROUTER_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          let message = `API error ${response.status}`;
+          try {
+            const parsed = JSON.parse(text);
+            if (parsed && parsed.error && parsed.error.message) {
+              message = parsed.error.message;
+            }
+          } catch {
+            // fallback : on garde le message par défaut
+          }
+          throw new Error(message);
+        }
+
+        const data = await response.json();
+        const content =
+          data.choices &&
+          data.choices[0] &&
+          data.choices[0].message &&
+          data.choices[0].message.content
+            ? data.choices[0].message.content
+            : "";
+
+        if (!content) {
+          throw new Error("Empty or unexpected API response.");
+        }
+
+        outputArea.value = content;
+        statusEl.textContent = "Article generated. You can now copy the Markdown.";
+        statusEl.classList.remove("loading");
+      } catch (error) {
+        console.error(error);
+        statusEl.textContent = `Error: ${error.message}`;
+        statusEl.classList.remove("loading");
+        statusEl.classList.add("error");
+      } finally {
+        generateBtn.disabled = false;
+        generateBtn.textContent = "Generate article";
       }
-
-      const data = await response.json();
-      const content =
-        data.choices &&
-        data.choices[0] &&
-        data.choices[0].message &&
-        data.choices[0].message.content
-          ? data.choices[0].message.content
-          : "";
-
-      if (!content) {
-        throw new Error("Empty or unexpected API response.");
-      }
-
-      outputArea.value = content;
-      statusEl.textContent = "Article generated. You can now copy the Markdown.";
-      statusEl.classList.remove("loading");
-    } catch (error) {
-      console.error(error);
-      statusEl.textContent = `Error: ${error.message}`;
-      statusEl.classList.remove("loading");
-      statusEl.classList.add("error");
-    } finally {
-      generateBtn.disabled = false;
-      generateBtn.textContent = "Generate article";
-    }
-  });
+    });
+  }
 });
+
+/* ---------- Prompt helpers ---------- */
+
+function standardPrompt(lines) {
+  return lines;
+}
+
+function minimalPrompt(lines) {
+  const result = [];
+
+  // Garder le contexte de base
+  for (let i = 0; i < lines.length; i++) {
+    if (i <= 4) {
+      result.push(lines[i]);
+    }
+  }
+
+  result.push("");
+  result.push("Write clearly. No fluff. Short intro.");
+  result.push("Use H2/H3 only when really useful.");
+  result.push("Keep paragraphs tight and focused.");
+  result.push("");
+
+  // Garder la dernière ligne si c’est une contrainte additionnelle
+  const last = lines[lines.length - 1];
+  if (last && last.trim()) {
+    result.push(last);
+  }
+
+  return result;
+}
 
 /**
  * Build the user prompt for the SEO article generator.
@@ -295,5 +445,19 @@ function buildUserPrompt({ keyword, language, tone, length, extra }) {
     lines.push(`Additional options or constraints: ${extra}`);
   }
 
-  return lines.join("\n");
+  const tocCheckbox = document.getElementById("tocCheckbox");
+  if (tocCheckbox && tocCheckbox.checked) {
+    lines.push(
+      "At the beginning of the article, add a Markdown table of contents with internal links to the main sections."
+    );
+  }
+
+  const promptModeSelect = document.getElementById("promptMode");
+  const mode = promptModeSelect ? promptModeSelect.value : "standard";
+
+  if (mode === "minimal") {
+    return minimalPrompt(lines).join("\n");
+  }
+
+  return standardPrompt(lines).join("\n");
 }

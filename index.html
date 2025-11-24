@@ -58,6 +58,32 @@
         <option value="deepseek/deepseek-chat">DeepSeek Chat</option>
       </select>
 
+      <label class="field-label" for="presetSelect">
+  Preset
+</label>
+<select id="presetSelect" class="field-input">
+  <option value="">None</option>
+  <option value="guide">Guide</option>
+  <option value="long">Long Article</option>
+  <option value="tutorial">Tutorial</option>
+  <option value="comparison">Comparison</option>
+  <option value="listicle">Listicle</option>
+  <option value="news">News</option>
+</select>
+
+<label class="field-label" for="promptMode">
+  Prompt Mode
+</label>
+<select id="promptMode" class="field-input">
+  <option value="standard" selected>Standard</option>
+  <option value="minimal">Minimal</option>
+</select>
+<label class="checkbox-row">
+  <input type="checkbox" id="tocCheckbox">
+  <span>Add Markdown Table of Contents</span>
+</label>
+
+
       <button type="button" id="resetStorageBtn" class="btn-ghost menu-reset">
         Reset local storage
       </button>
@@ -199,5 +225,13 @@
   </footer>
 
   <script src="app.js"></script>
+  <div id="onboarding" class="onboarding hidden">
+  <div class="onboarding-content">
+    <h2>Welcome to OpenSEO Studio</h2>
+    <p>You need to configure your API key before generating articles.</p>
+    <button id="onboardingClose" class="btn-primary">Got it</button>
+  </div>
+</div>
+
 </body>
 </html>

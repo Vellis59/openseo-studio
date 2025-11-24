@@ -3,79 +3,75 @@
 OpenSEO Studio is a **fully client-side, static SEO writing tool** powered by AI models through [OpenRouter](https://openrouter.ai/).
 
 No backend. No database. Bring Your Own API Key (BYOK).  
-Your key stays in your browser. You keep full control.
+Your API key stays in your browser — you keep full control.
 
-This repository contains **version 0.1**, the foundation of the project.
-
----
-
-## Features (v0.1)
-
-- Clean and simple interface (English only)
-- FR/EN article generation
-- OpenRouter model selection:
-  - `openai/gpt-4.1-mini`
-  - `openai/gpt-4.1`
-  - `openai/gpt-oss-120b`
-  - `anthropic/claude-3.5-sonnet`
-  - `google/gemini-2.0-flash`
-  - `deepseek/deepseek-chat`
-- Tone, length and language selectors
-- Additional constraints support
-- Markdown-only output
-- Optional API key storage (localStorage)
-- No emojis, no front matter, no HTML output
+This repository contains **OpenSEO Studio v0.3**, including AI presets, prompt modes, onboarding, and a cleaner UX.
 
 ---
 
-## How to use
+## Features (v0.3)
 
-1. Open the settings menu (top-right)  
+### 🧩 Core Functionality
+- 100% client-side, static HTML/CSS/JS  
+- SEO-optimized long-form article generation  
+- Markdown-only output (no HTML, no front matter, no emojis)  
+- Supports English and French content generation  
+
+### 🔧 AI Model Selection (via OpenRouter)
+- `openai/gpt-4.1-mini`
+- `openai/gpt-4.1`
+- `openai/gpt-oss-120b`
+- `anthropic/claude-3.5-sonnet`
+- `google/gemini-2.0-flash`
+- `deepseek/deepseek-chat`
+
+### ✨ New in v0.3
+- **6 AI presets**  
+  (Guide, Long Article, Tutorial, Comparison, Listicle, News)
+- **Prompt Mode**  
+  Switch between *Standard* and *Minimal* instructions
+- **Optional Markdown TOC**  
+  Auto-injects a table of contents at the top of the article
+- **Onboarding overlay**  
+  Helps new users configure their API key
+- **Clean error messages**  
+  Improved handling of OpenRouter responses
+- **UI polish**  
+  Better padding, clearer loading state, refined buttons, improved UX
+
+---
+
+## How to Use
+
+1. Open the **Settings** menu (top-right)  
 2. Paste your **OpenRouter API key**  
-3. Choose your preferred model  
-4. Enter a keyword and configure tone/length/language  
-5. Click **Generate article**  
-6. Copy the Markdown output and use it in your CMS or editor
+3. Select an AI model  
+4. Enter a main keyword  
+5. Configure tone, length, language  
+6. (Optional) Select a preset or enable TOC  
+7. Click **Generate article**  
+8. Copy the Markdown output to your CMS or editor  
 
 All requests go **directly from your browser to OpenRouter**.  
-No data is sent to any OpenSEO Studio server.
+Nothing is stored server-side.
 
 ---
 
-## Running locally
+## Running Locally
 
-You can use OpenSEO Studio even without hosting.
+OpenSEO Studio is fully static and can run locally without installation.
 
-**Option 1 — Double-click**
-Simply open `index.html` in your browser.
+### Option 1 — Double-click  
+Simply open `index.html` in any modern browser.
 
-**Option 2 — Local static server**
+### Option 2 — Local static server  
 ```bash
 python -m http.server 8080
-
 Then visit:
-
 http://localhost:8080/
 
-Roadmap
-
-The next versions will introduce:
-
-    UX improvements
-
-    Internationalised UI (EN/FR/ES)
-
-    Extra languages for article generation
-
-    Markdown file export
-
-    Presets system
-
-    Import/export presets
-
-    Full documentation and screenshots
+Cloud-ready version (optional)
 
 License
-
 Released under the MIT License.
-See the LICENSE file
+See the LICENSE file for details.

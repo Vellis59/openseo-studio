@@ -65,6 +65,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const regenSelectionBtn = document.getElementById("regenSelectionBtn");
   const toneSelectionBtn = document.getElementById("toneSelectionBtn");
 
+  const seoScoreEl = document.getElementById("seoScore");
+  const headingStructureStatus = document.getElementById("headingStructureStatus");
+  const headingStructureList = document.getElementById("headingStructureList");
+  const keywordDensityEl = document.getElementById("keywordDensity");
+  const keywordPresenceEl = document.getElementById("keywordPresence");
+  const readabilityScoreEl = document.getElementById("readabilityScore");
+  const avgSentenceLengthEl = document.getElementById("avgSentenceLength");
+  const readabilityAdviceEl = document.getElementById("readabilityAdvice");
+  const suggestionsList = document.getElementById("seoSuggestions");
+  const generateMetaBtn = document.getElementById("generateMetaBtn");
+  const metaDescriptionEl = document.getElementById("metaDescription");
+  const metaTitleEl = document.getElementById("metaTitle");
+  const metaKeywordsEl = document.getElementById("metaKeywords");
+  const metaStatusEl = document.getElementById("metaStatus");
+
   const openHistoryBtn = document.getElementById("openHistoryBtn");
   const historyOverlay = document.getElementById("historyOverlay");
   const closeHistoryBtn = document.getElementById("closeHistoryBtn");
@@ -646,6 +661,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!previewEl) return;
     if (!text || !text.trim()) {
       previewEl.innerHTML = '<p class="preview-placeholder">Start typing or generate content to see the preview.</p>';
+      runLocalAnalysis("");
       return;
     }
 
@@ -655,9 +671,330 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         previewEl.textContent = text;
       }
+      runLocalAnalysis(text);
     } catch (err) {
       console.error("renderPreview error", err);
       previewEl.textContent = text;
+    }
+  }
+
+  function escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function extractHeadings(text) {
+    const headings = [];
+    const lines = text.split(/\n+/);
+    for (const line of lines) {
+      const match = line.match(/^(#{1,6})\s+(.*)$/);
+      if (match) {
+        headings.push({ level: match[1].length, text: match[2].trim() });
+      }
+    }
+    return headings;
+  }
+
+  function checkHeadingHierarchy(headings) {
+    if (!headings.length) return { ok: false, message: "No headings found." };
+    let lastLevel = headings[0].level;
+    for (let i = 1; i < headings.length; i += 1) {
+      const level = headings[i].level;
+      if (level - lastLevel > 1) {
+        return { ok: false, message: `Jumped from H${lastLevel} to H${level}.` };
+      }
+      lastLevel = level;
+    }
+    if (headings[0].level !== 1) {
+      return { ok: false, message: "Add a single H1 at the top." };
+    }
+    return { ok: true, message: "Hierarchy looks solid." };
+  }
+
+  function countKeyword(text, keyword) {
+    if (!keyword) return 0;
+    const safe = escapeRegExp(keyword.trim());
+    const regex = new RegExp(`\\b${safe}\\b`, "gi");
+    const matches = text.match(regex);
+    return matches ? matches.length : 0;
+  }
+
+  function computeSeoScore({ hasH1Keyword, hasH2Keyword, density, wordCount }) {
+    let score = 0;
+    if (hasH1Keyword) score += 30;
+    if (hasH2Keyword) score += 20;
+
+    if (density >= 1 && density <= 3) {
+      score += 30;
+    } else if (density > 0) {
+      score += 20 - Math.min(10, Math.abs(2 - density));
+    }
+
+    if (wordCount >= 800 && wordCount <= 2500) {
+      score += 20;
+    } else if (wordCount > 0) {
+      score += 10;
+    }
+
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
+  function syllableCount(word) {
+    const cleaned = word.toLowerCase().replace(/[^a-zàâäéèêëïîôöùûüç-]/gi, "");
+    if (!cleaned) return 0;
+    const matches = cleaned.match(/[aeiouyàâäéèêëïîôöùûüœ]+/gi);
+    return Math.max(1, matches ? matches.length : 1);
+  }
+
+  function analyzeReadability(text, language) {
+    const sentences = text
+      .replace(/\n+/g, " ")
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const words = text.trim() ? text.trim().split(/\s+/).filter(Boolean) : [];
+    const syllables = words.reduce((acc, word) => acc + syllableCount(word), 0);
+
+    const sentenceCount = sentences.length || 1;
+    const wordCount = words.length || 1;
+    const syllableRatio = sentenceCount && wordCount ? syllables / wordCount : 0;
+    const wordsPerSentence = sentences.length ? wordCount / sentenceCount : 0;
+
+    const isFrench = (language || "").toLowerCase().includes("french");
+    const score = sentences.length
+      ? isFrench
+        ? 207 - 1.015 * wordsPerSentence - 73.6 * syllableRatio
+        : 206.835 - 1.015 * wordsPerSentence - 84.6 * syllableRatio
+      : 0;
+
+    const complexThreshold = isFrench ? 28 : 25;
+    const complexSentences = sentences.filter((s) => s.split(/\s+/).filter(Boolean).length > complexThreshold);
+
+    return {
+      score: Math.round(score),
+      averageSentenceLength: sentences.length ? Math.round(wordsPerSentence * 10) / 10 : 0,
+      complexSentences,
+      totalSentences: sentences.length
+    };
+  }
+
+  function highlightComplexSentences(complexSentences) {
+    if (!previewEl) return;
+    previewEl.querySelectorAll("mark.complex-sentence").forEach((mark) => {
+      const textNode = document.createTextNode(mark.textContent);
+      mark.replaceWith(textNode);
+    });
+
+    if (!Array.isArray(complexSentences) || !complexSentences.length) return;
+    const targets = new Set(complexSentences.map((s) => s.trim()));
+    const paragraphs = previewEl.querySelectorAll("p");
+    paragraphs.forEach((p) => {
+      const parts = p.textContent.split(/(?<=[.!?])\s+/);
+      if (parts.length <= 1) return;
+      const rebuilt = parts
+        .map((segment) => {
+          const trimmed = segment.trim();
+          if (!trimmed) return "";
+          if (targets.has(trimmed)) {
+            return `<mark class="complex-sentence">${escapeHtml(segment)}</mark>`;
+          }
+          return escapeHtml(segment);
+        })
+        .filter(Boolean)
+        .join(" ");
+      if (rebuilt.includes("complex-sentence")) {
+        p.innerHTML = rebuilt;
+      }
+    });
+  }
+
+  function runLocalAnalysis(text) {
+    if (!seoScoreEl || !keywordDensityEl) return;
+    const keyword = keywordInput ? keywordInput.value.trim() : "";
+    const words = text.trim() ? text.trim().split(/\s+/).filter(Boolean) : [];
+    const wordCount = words.length;
+    const headings = extractHeadings(text);
+    const hierarchy = checkHeadingHierarchy(headings);
+
+    const h1 = headings.find((h) => h.level === 1)?.text || "";
+    const h2 = headings.find((h) => h.level === 2)?.text || "";
+    const hasH1Keyword = keyword ? new RegExp(escapeRegExp(keyword), "i").test(h1) : false;
+    const hasH2Keyword = keyword ? new RegExp(escapeRegExp(keyword), "i").test(h2) : false;
+    const occurrences = countKeyword(text, keyword);
+    const density = keyword ? ((occurrences / Math.max(wordCount, 1)) * 100).toFixed(1) : "0.0";
+
+    const seoScore = keyword
+      ? computeSeoScore({ hasH1Keyword, hasH2Keyword, density: Number(density), wordCount })
+      : 0;
+
+    if (seoScoreEl) {
+      seoScoreEl.textContent = keyword ? `${seoScore} / 100` : "— / 100";
+    }
+
+    if (keywordDensityEl) {
+      keywordDensityEl.textContent = keyword
+        ? `${density}% density • ${occurrences} occurrence${occurrences === 1 ? "" : "s"}`
+        : "Add a keyword to analyze density.";
+    }
+
+    if (keywordPresenceEl) {
+      if (!keyword) {
+        keywordPresenceEl.textContent = "H1/H2 checks will appear here.";
+      } else {
+        const parts = [];
+        parts.push(hasH1Keyword ? "H1 contains the keyword" : "H1 missing keyword");
+        parts.push(hasH2Keyword ? "H2 includes the keyword" : "H2 missing keyword");
+        parts.push(wordCount ? `${wordCount} words` : "No content yet");
+        keywordPresenceEl.textContent = parts.join(" · ");
+      }
+    }
+
+    if (headingStructureStatus) {
+      headingStructureStatus.textContent = hierarchy.message;
+    }
+
+    if (headingStructureList) {
+      headingStructureList.innerHTML = "";
+      headings.slice(0, 12).forEach((h) => {
+        const li = document.createElement("li");
+        li.textContent = `H${h.level}: ${h.text}`;
+        headingStructureList.appendChild(li);
+      });
+      if (!headings.length) {
+        const li = document.createElement("li");
+        li.textContent = "No headings found.";
+        headingStructureList.appendChild(li);
+      }
+    }
+
+    const readability = analyzeReadability(text || "", languageSelect ? languageSelect.value : "");
+    if (readabilityScoreEl) {
+      readabilityScoreEl.textContent = Number.isFinite(readability.score)
+        ? `Flesch score: ${readability.score}`
+        : "—";
+    }
+    if (avgSentenceLengthEl) {
+      avgSentenceLengthEl.textContent = `Avg sentence length: ${readability.averageSentenceLength} words (${readability.totalSentences} sentences)`;
+    }
+    if (readabilityAdviceEl) {
+      readabilityAdviceEl.textContent = readability.complexSentences.length
+        ? `${readability.complexSentences.length} sentence(s) highlighted as complex.`
+        : "Complex sentences are highlighted in the preview.";
+    }
+
+    if (suggestionsList) {
+      suggestionsList.innerHTML = "";
+      const suggestions = [];
+      if (!keyword) suggestions.push("Add a main keyword to unlock the SEO score.");
+      if (keyword && !hasH1Keyword) suggestions.push("Include the main keyword in your H1 title.");
+      if (keyword && !hasH2Keyword) suggestions.push("Add the keyword to at least one H2 subheading.");
+      if (keyword && (Number(density) < 0.8 || Number(density) > 3.5))
+        suggestions.push("Balance keyword density between 1% and 3% for readability.");
+      if (wordCount < 800) suggestions.push("Expand the article to exceed 800 words.");
+      if (!hierarchy.ok) suggestions.push("Fix heading hierarchy issues.");
+      if (!suggestions.length) suggestions.push("Great! Your on-page basics look solid.");
+      suggestions.forEach((tip) => {
+        const li = document.createElement("li");
+        li.textContent = tip;
+        suggestionsList.appendChild(li);
+      });
+    }
+
+    highlightComplexSentences(readability.complexSentences);
+  }
+
+  function parseMetadataResponse(content) {
+    try {
+      const parsed = JSON.parse(content);
+      return {
+        metaTitle: parsed.metaTitle || parsed.title || "",
+        metaDescription: parsed.metaDescription || parsed.description || "",
+        secondaryKeywords: Array.isArray(parsed.secondaryKeywords)
+          ? parsed.secondaryKeywords.join(", ")
+          : parsed.secondaryKeywords || parsed.keywords || ""
+      };
+    } catch (err) {
+      const titleMatch = content.match(/title[:\-]\s*(.*)/i);
+      const descMatch = content.match(/description[:\-]\s*(.*)/i);
+      const kwMatch = content.match(/keywords?[:\-]\s*(.*)/i);
+      return {
+        metaTitle: titleMatch ? titleMatch[1].trim() : content.slice(0, 70),
+        metaDescription: descMatch ? descMatch[1].trim() : "",
+        secondaryKeywords: kwMatch ? kwMatch[1].trim() : ""
+      };
+    }
+  }
+
+  async function generateMetadata() {
+    if (!metaStatusEl) return;
+    const apiKey = apiKeyInput ? apiKeyInput.value.trim() : "";
+    const model = modelSelect ? modelSelect.value : "";
+    const keyword = keywordInput ? keywordInput.value.trim() : "";
+    const language = languageSelect ? languageSelect.value : "English";
+    const tone = toneSelect ? toneSelect.value : "Neutral";
+    const article = outputArea ? outputArea.value.trim() : "";
+
+    if (!apiKey || !model) {
+      metaStatusEl.textContent = "Enter your API key and model to generate metadata.";
+      return;
+    }
+
+    if (!article) {
+      metaStatusEl.textContent = "Add some content first so the AI can craft metadata.";
+      return;
+    }
+
+    metaStatusEl.textContent = "Generating metadata...";
+    metaStatusEl.classList.remove("error");
+    generateMetaBtn.disabled = true;
+
+    const body = {
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an SEO assistant who writes concise, compelling metadata. Respond only in JSON without Markdown fences."
+        },
+        {
+          role: "user",
+          content:
+            `Main keyword: ${keyword || "(not provided)"}. Language: ${language}. Tone: ${tone}. ` +
+            "Return JSON with keys metaTitle (50-60 chars), metaDescription (150-160 chars), and secondaryKeywords (3-6 comma-separated entries). " +
+            "Use the article below as context and avoid repeating the H1 verbatim.\n\n" +
+            article.slice(0, 3200)
+        }
+      ],
+      temperature: 0.6,
+      max_tokens: 300,
+      top_p: 1,
+      frequency_penalty: 0
+    };
+
+    try {
+      const content = await callChat(body, apiKey);
+      const parsed = parseMetadataResponse(content);
+      if (metaTitleEl) metaTitleEl.textContent = parsed.metaTitle || "—";
+      if (metaDescriptionEl) metaDescriptionEl.textContent = parsed.metaDescription || "—";
+      if (metaKeywordsEl) metaKeywordsEl.textContent = parsed.secondaryKeywords || "—";
+      metaStatusEl.textContent = "Metadata ready.";
+      recordCost(model, 240);
+      updateEstimates();
+    } catch (err) {
+      console.error("generateMetadata error", err);
+      metaStatusEl.textContent = `Metadata request failed: ${err.message}`;
+      metaStatusEl.classList.add("error");
+    } finally {
+      generateMetaBtn.disabled = false;
     }
   }
 
@@ -670,10 +1007,20 @@ document.addEventListener("DOMContentLoaded", () => {
     renderPreview(outputArea.value);
   }
 
+  if (generateMetaBtn) {
+    generateMetaBtn.addEventListener("click", generateMetadata);
+  }
+
   [keywordInput, lengthSelect, languageSelect, toneSelect, extraInput].forEach((el) => {
     if (!el) return;
     el.addEventListener("change", updateEstimates);
     el.addEventListener("input", updateEstimates);
+  });
+
+  [keywordInput, languageSelect].forEach((el) => {
+    if (!el || !outputArea) return;
+    el.addEventListener("input", () => runLocalAnalysis(outputArea.value));
+    el.addEventListener("change", () => runLocalAnalysis(outputArea.value));
   });
 
   if (planEditor) {

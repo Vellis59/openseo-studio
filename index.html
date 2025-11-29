@@ -323,6 +323,58 @@
               <p class="preview-placeholder">Start typing or generate content to see the preview.</p>
             </div>
           </div>
+
+          <aside class="panel insights-panel" id="insightsPanel" aria-live="polite">
+            <div class="panel-header">
+              <div>
+                <p class="panel-title">SEO & readability</p>
+                <p class="panel-sub">Local checks, no API calls required.</p>
+              </div>
+              <span class="score-badge" id="seoScore">— / 100</span>
+            </div>
+
+            <div class="insight-block">
+              <div class="insight-row">
+                <p class="insight-label">Heading structure</p>
+                <p class="insight-value" id="headingStructureStatus">Waiting for content…</p>
+              </div>
+              <ul class="insight-list" id="headingStructureList"></ul>
+            </div>
+
+            <div class="insight-block">
+              <p class="insight-label">Keyword usage</p>
+              <p class="insight-value" id="keywordDensity">Add a keyword to analyze density.</p>
+              <p class="insight-meta" id="keywordPresence">H1/H2 checks will appear here.</p>
+            </div>
+
+            <div class="insight-block">
+              <p class="insight-label">Readability</p>
+              <p class="insight-value" id="readabilityScore">—</p>
+              <p class="insight-meta" id="avgSentenceLength">Average sentence length will appear here.</p>
+              <p class="insight-help" id="readabilityAdvice">Complex sentences are highlighted in the preview.</p>
+            </div>
+
+            <div class="insight-block">
+              <p class="insight-label">Suggestions</p>
+              <ul class="insight-list" id="seoSuggestions"></ul>
+            </div>
+
+            <div class="insight-block">
+              <div class="insight-row">
+                <p class="insight-label">Metadata</p>
+                <button type="button" class="btn-secondary btn-compact" id="generateMetaBtn">Generate</button>
+              </div>
+              <p class="insight-meta" id="metaStatus">Uses your selected model to craft meta tags.</p>
+              <div class="meta-results" id="metaResults">
+                <p class="insight-label">SEO title</p>
+                <p class="insight-value" id="metaTitle">—</p>
+                <p class="insight-label">Meta description</p>
+                <p class="insight-value" id="metaDescription">—</p>
+                <p class="insight-label">Secondary keywords</p>
+                <p class="insight-value" id="metaKeywords">—</p>
+              </div>
+            </div>
+          </aside>
         </div>
 
       </form>
@@ -346,7 +398,7 @@
 
   <footer class="footer">
     <p class="footer-text">
-      OpenSEO Studio v0.6.0 – fully static, MIT-licensed, BYOK SEO writing tool.
+      OpenSEO Studio v0.7.0 – fully static, MIT-licensed, BYOK SEO writing tool.
     </p>
   </footer>
 

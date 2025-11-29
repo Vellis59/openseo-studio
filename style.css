@@ -538,9 +538,10 @@ body {
 
 .split-layout {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1.05fr 1.05fr 0.9fr;
   gap: 0.9rem;
   margin-top: 0.9rem;
+  align-items: start;
 }
 
 .panel {
@@ -557,6 +558,91 @@ body {
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.insights-panel {
+  position: sticky;
+  top: 4.5rem;
+  align-self: start;
+}
+
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 70%, transparent);
+  background: color-mix(in srgb, var(--accent-soft) 45%, var(--bg-card));
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.insight-block {
+  border-top: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+  padding-top: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.insight-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.insight-label {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.insight-value {
+  margin: 0.2rem 0 0.1rem;
+}
+
+.insight-meta,
+.insight-help {
+  margin: 0.15rem 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.insight-meta.error {
+  color: var(--danger);
+}
+
+.insight-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1rem;
+  color: var(--text-muted);
+  display: grid;
+  gap: 0.25rem;
+}
+
+.insight-list li {
+  line-height: 1.4;
+}
+
+.meta-results {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.meta-results p {
+  margin: 0;
+}
+
+.btn-compact {
+  padding: 0.35rem 0.8rem;
+  font-size: 0.9rem;
+}
+
+.complex-sentence {
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
+  color: var(--text-main);
+  padding: 0.05rem 0.2rem;
+  border-radius: 0.35rem;
 }
 
 .panel-title {

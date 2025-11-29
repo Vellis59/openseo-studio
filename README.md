@@ -17,13 +17,17 @@ This repository contains **OpenSEO Studio v0.5.0**, including split-screen editi
 - Markdown-only output (no HTML, no front matter, no emojis)
 - Supports English and French content generation
 
-### 🔧 AI Model Selection (via OpenRouter)
-- `openai/gpt-4.1-mini`
-- `openai/gpt-4.1`
-- `openai/gpt-oss-120b`
-- `anthropic/claude-3.5-sonnet`
-- `google/gemini-2.0-flash`
-- `deepseek/deepseek-chat`
+### 🔧 AI Model Selection (Dynamic via OpenRouter)
+
+OpenSEO Studio no longer uses a fixed list of AI models.
+
+When you enter your OpenRouter API key, the app automatically fetches all models available on your account (including premium, BYOK and new models), and updates the selector in real time.
+
+✔ Always up to date
+✔ No hard-coded list
+✔ Models depend on your API key
+
+(The model list is dynamically loaded — it may differ for each user)
 
 ### ✨ New in v0.5.0
 - **Article history (local, client-side)**
@@ -61,6 +65,7 @@ Nothing is stored server-side.
 ## Running Locally
 
 OpenSEO Studio is fully static and can run locally without installation.
+
 
 ### Option 1 — Double-click
 Simply open `index.html` in any modern browser.

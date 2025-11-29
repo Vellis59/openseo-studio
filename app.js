@@ -1,4 +1,5 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 
 document.addEventListener("DOMContentLoaded", () => {
   const menuToggle = document.getElementById("menuToggle");
@@ -65,6 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (rememberKeyCheckbox) {
       rememberKeyCheckbox.checked = true;
     }
+    fetchAndPopulateModels(storedKey);
   } else if (onboarding) {
     // Onboarding: pas de clé connue → montrer l’overlay
     onboarding.classList.remove("hidden");
@@ -78,6 +80,37 @@ document.addEventListener("DOMContentLoaded", () => {
   if (modelSelect) {
     modelSelect.addEventListener("change", () => {
       window.localStorage.setItem(STORAGE_KEY_MODEL, modelSelect.value);
+    });
+  }
+
+  if (apiKeyInput) {
+    apiKeyInput.addEventListener("change", () => {
+      const key = apiKeyInput.value.trim();
+      if (!key) {
+        clearModelOptions();
+        return;
+      }
+      if (rememberKeyCheckbox && rememberKeyCheckbox.checked) {
+        window.localStorage.setItem(STORAGE_KEY_API, key);
+      } else {
+        window.localStorage.removeItem(STORAGE_KEY_API);
+      }
+      fetchAndPopulateModels(key);
+    });
+  }
+
+  if (rememberKeyCheckbox) {
+    rememberKeyCheckbox.addEventListener("change", () => {
+      const key = apiKeyInput.value.trim();
+      if (!key) {
+        window.localStorage.removeItem(STORAGE_KEY_API);
+        return;
+      }
+      if (rememberKeyCheckbox.checked) {
+        window.localStorage.setItem(STORAGE_KEY_API, key);
+      } else {
+        window.localStorage.removeItem(STORAGE_KEY_API);
+      }
     });
   }
 
@@ -163,10 +196,110 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.classList.remove("error", "loading");
       statusEl.textContent = "Local storage cleared.";
 
+      clearModelOptions();
+
       if (onboarding) {
         onboarding.classList.remove("hidden");
       }
     });
+  }
+
+  /* ---------- Load models from OpenRouter ---------- */
+
+  async function fetchAndPopulateModels(apiKey) {
+    if (!modelSelect) return;
+
+    modelSelect.disabled = true;
+    statusEl.classList.remove("error");
+    statusEl.classList.add("loading");
+    statusEl.textContent = "Loading models from OpenRouter...";
+
+    try {
+      const response = await fetch(OPENROUTER_MODELS_URL, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`
+        }
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        let message = `Unable to fetch models (${response.status}).`;
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed?.error?.message) {
+            message = parsed.error.message;
+          }
+        } catch {
+          // noop
+        }
+        throw new Error(message);
+      }
+
+      const payload = await response.json();
+      const models = Array.isArray(payload?.data) ? payload.data : [];
+      populateModelOptions(models);
+      statusEl.classList.remove("loading");
+      statusEl.textContent = models.length
+        ? "Models loaded. Choose your preferred model."
+        : "No models returned by OpenRouter.";
+    } catch (err) {
+      console.error("fetchAndPopulateModels error:", err);
+      statusEl.classList.remove("loading");
+      statusEl.classList.add("error");
+      statusEl.textContent = `Could not load models: ${err.message}`;
+      clearModelOptions();
+    }
+  }
+
+  function populateModelOptions(models) {
+    if (!modelSelect) return;
+
+    modelSelect.innerHTML = "";
+
+    if (!models.length) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "No models available";
+      modelSelect.appendChild(option);
+      modelSelect.disabled = true;
+      window.localStorage.removeItem(STORAGE_KEY_MODEL);
+      return;
+    }
+
+    const storedModel = window.localStorage.getItem(STORAGE_KEY_MODEL);
+    const sortedModels = models
+      .filter((m) => m?.id)
+      .sort((a, b) => a.id.localeCompare(b.id));
+
+    sortedModels.forEach((model) => {
+      const option = document.createElement("option");
+      option.value = model.id;
+      option.textContent = model.name || model.id;
+      option.title = model.description || model.id;
+      modelSelect.appendChild(option);
+    });
+
+    if (storedModel && sortedModels.some((m) => m.id === storedModel)) {
+      modelSelect.value = storedModel;
+    }
+
+    if (!modelSelect.value && sortedModels[0]) {
+      modelSelect.value = sortedModels[0].id;
+      window.localStorage.setItem(STORAGE_KEY_MODEL, sortedModels[0].id);
+    }
+
+    modelSelect.disabled = false;
+  }
+
+  function clearModelOptions() {
+    if (!modelSelect) return;
+    modelSelect.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Enter your API key to load models";
+    modelSelect.appendChild(placeholder);
+    modelSelect.disabled = true;
+    window.localStorage.removeItem(STORAGE_KEY_MODEL);
   }
 
   /* ---------- Copy Markdown ---------- */
@@ -277,6 +410,16 @@ document.addEventListener("DOMContentLoaded", () => {
       const length = lengthSelect.value;
       const extra = extraInput.value.trim();
       const model = modelSelect.value;
+
+      if (!model) {
+        statusEl.textContent = "Please select a model (load them from OpenRouter first).";
+        statusEl.classList.add("error");
+        if (menuPanel) {
+          menuPanel.classList.add("open");
+          menuPanel.setAttribute("aria-hidden", "false");
+        }
+        return;
+      }
 
       if (rememberKeyCheckbox && rememberKeyCheckbox.checked) {
         window.localStorage.setItem(STORAGE_KEY_API, apiKey);

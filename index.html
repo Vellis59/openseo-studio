@@ -46,16 +46,11 @@
       <label class="field-label" for="modelSelect">
         Default model
         <span class="field-help">
-          You can change this at any time. All calls go through OpenRouter.
+          Enter your API key to load available models directly from OpenRouter.
         </span>
       </label>
-      <select id="modelSelect" class="field-input">
-        <option value="openai/gpt-4.1-mini">GPT-4.1 Mini (OpenAI)</option>
-        <option value="openai/gpt-4.1">GPT-4.1 (OpenAI)</option>
-        <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
-        <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
-        <option value="google/gemini-2.0-flash">Gemini 2.0 Flash</option>
-        <option value="deepseek/deepseek-chat">DeepSeek Chat</option>
+      <select id="modelSelect" class="field-input" disabled>
+        <option value="">Enter your API key to load models</option>
       </select>
 
       <label class="field-label" for="presetSelect">

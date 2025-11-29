@@ -1589,6 +1589,17 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify(body)
       });
 
+      const contentType = response.headers.get("content-type") || "";
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenRouter error ${response.status}: ${errorText.slice(0, 200)}`);
+      }
+
+      if (!contentType.includes("application/json")) {
+        const fallback = await response.text();
+        throw new Error(`Unexpected response format (${contentType}): ${fallback.slice(0, 200)}`);
+      }
+
       const data = await response.json();
       const imageUrl = data?.data?.[0]?.url || data?.data?.[0]?.b64_json;
       if (!imageUrl) {

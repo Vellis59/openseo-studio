@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>OpenSEO Studio – AI-powered SEO article generator</title>
+  <title>OpenSEO Studio v0.7.0 – AI-powered SEO article generator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="OpenSEO Studio is a fully client-side SEO article generator powered by OpenRouter. Bring your own API key, keep full control, and generate clean Markdown content.">
   <meta name="color-scheme" content="dark light">
@@ -155,7 +155,7 @@
     <section class="hero">
       <h1>SEO article generator for people who hate bloated tools</h1>
       <p class="hero-text">
-        OpenSEO Studio is a fully static, BYOK SEO writing tool.  
+        OpenSEO Studio is a fully static, BYOK SEO writing tool.
         No backend, no account, no tracking. Just your API key and clean Markdown output.
       </p>
       <div class="hero-badges">
@@ -237,6 +237,9 @@
           <button type="button" id="generateBtn" class="btn-primary">
             Generate article
           </button>
+          <button type="button" id="generateMetadataBtn" class="btn-secondary">
+            Generate SEO metadata
+          </button>
           <button type="button" id="copyBtn" class="btn-secondary">
             Copy Markdown
           </button>
@@ -275,54 +278,121 @@
           <textarea id="planEditor" class="output-area plan-area" placeholder="Plan will appear here..." spellcheck="false"></textarea>
         </div>
 
-        <div class="split-header">
-          <div>
-            <label class="field-label" for="output">
-              Markdown editor & live preview
-            </label>
-            <p class="field-help">See the rendered HTML as you type or generate.</p>
-          </div>
-          <div class="view-toggle" role="group" aria-label="Toggle editor or preview on mobile">
-            <button type="button" class="toggle-chip active" id="viewEditorBtn">Editor</button>
-            <button type="button" class="toggle-chip" id="viewPreviewBtn">Preview</button>
-          </div>
-        </div>
+        <div class="workspace-grid">
+          <div class="workspace-main">
+            <div class="split-header">
+              <div>
+                <label class="field-label" for="output">
+                  Markdown editor & live preview
+                </label>
+                <p class="field-help">See the rendered HTML as you type or generate.</p>
+              </div>
+              <div class="view-toggle" role="group" aria-label="Toggle editor or preview on mobile">
+                <button type="button" class="toggle-chip active" id="viewEditorBtn">Editor</button>
+                <button type="button" class="toggle-chip" id="viewPreviewBtn">Preview</button>
+              </div>
+            </div>
 
-        <div class="split-layout" id="splitLayout">
-          <div class="panel editor-panel" id="editorPanel">
-            <div class="panel-header">
-              <div>
-                <p class="panel-title">Markdown editor</p>
-                <p class="panel-sub">Generate or refine your article, then copy it.</p>
+            <div class="split-layout" id="splitLayout">
+              <div class="panel editor-panel" id="editorPanel">
+                <div class="panel-header">
+                  <div>
+                    <p class="panel-title">Markdown editor</p>
+                    <p class="panel-sub">Generate or refine your article, then copy it.</p>
+                  </div>
+                  <div class="metrics">
+                    <span id="wordCount">0 words</span>
+                    <span aria-hidden="true">•</span>
+                    <span id="charCount">0 chars</span>
+                  </div>
+                </div>
+                <textarea
+                  id="output"
+                  class="output-area"
+                  spellcheck="false"
+                  placeholder="Your article will appear here as pure Markdown..."
+                ></textarea>
+                <div class="selection-actions">
+                  <button type="button" id="regenSelectionBtn" class="btn-secondary">Regenerate selection</button>
+                  <button type="button" id="toneSelectionBtn" class="btn-ghost">Change tone</button>
+                </div>
               </div>
-              <div class="metrics">
-                <span id="wordCount">0 words</span>
-                <span aria-hidden="true">•</span>
-                <span id="charCount">0 chars</span>
+              <div class="panel preview-panel" id="previewPanel" aria-live="polite">
+                <div class="panel-header">
+                  <div>
+                    <p class="panel-title">Live preview</p>
+                    <p class="panel-sub">Rendered HTML, ready for CMS or notes.</p>
+                  </div>
+                </div>
+                <div id="preview" class="preview-area">
+                  <p class="preview-placeholder">Start typing or generate content to see the preview.</p>
+                </div>
               </div>
-            </div>
-            <textarea
-              id="output"
-              class="output-area"
-              spellcheck="false"
-              placeholder="Your article will appear here as pure Markdown..."
-            ></textarea>
-            <div class="selection-actions">
-              <button type="button" id="regenSelectionBtn" class="btn-secondary">Regenerate selection</button>
-              <button type="button" id="toneSelectionBtn" class="btn-ghost">Change tone</button>
             </div>
           </div>
-          <div class="panel preview-panel" id="previewPanel" aria-live="polite">
-            <div class="panel-header">
-              <div>
-                <p class="panel-title">Live preview</p>
-                <p class="panel-sub">Rendered HTML, ready for CMS or notes.</p>
+
+          <aside class="insight-sidebar">
+            <div class="insight-card">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-title">SEO Analyzer</p>
+                  <p class="panel-sub">Local checks for headings, density, and length.</p>
+                </div>
+                <div class="seo-score-chip">
+                  <span id="seoScoreValue">—</span>
+                  <small>/100</small>
+                </div>
+              </div>
+              <div class="score-bar" aria-hidden="true">
+                <div id="seoScoreBar"></div>
+              </div>
+              <ul class="insight-list" id="seoChecksList"></ul>
+              <div class="insight-suggestions">
+                <p class="panel-sub">Suggestions</p>
+                <ul class="insight-list" id="seoSuggestionsList"></ul>
               </div>
             </div>
-            <div id="preview" class="preview-area">
-              <p class="preview-placeholder">Start typing or generate content to see the preview.</p>
+
+            <div class="insight-card">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-title">Readability</p>
+                  <p class="panel-sub">Flesch-style estimate for English and French.</p>
+                </div>
+              </div>
+              <div class="insight-grid">
+                <div>
+                  <p class="insight-label">Readability score</p>
+                  <p class="insight-value" id="readabilityScore">—</p>
+                </div>
+                <div>
+                  <p class="insight-label">Average sentence length</p>
+                  <p class="insight-value" id="averageSentenceLength">—</p>
+                </div>
+              </div>
+              <div>
+                <p class="insight-label">Complex sentences</p>
+                <ul class="insight-list" id="complexSentencesList"></ul>
+              </div>
             </div>
-          </div>
+
+            <div class="insight-card">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-title">SEO Metadata</p>
+                  <p class="panel-sub">AI-powered titles, descriptions, and keywords.</p>
+                </div>
+              </div>
+              <div class="metadata-fields">
+                <p class="insight-label">SEO Title</p>
+                <p class="metadata-text" id="seoTitleText">Waiting for generation...</p>
+                <p class="insight-label">Meta description</p>
+                <p class="metadata-text" id="metaDescriptionText">Waiting for generation...</p>
+                <p class="insight-label">Secondary keywords</p>
+                <p class="metadata-text" id="secondaryKeywordsText">Waiting for generation...</p>
+              </div>
+            </div>
+          </aside>
         </div>
 
       </form>
@@ -346,7 +416,7 @@
 
   <footer class="footer">
     <p class="footer-text">
-      OpenSEO Studio v0.6.0 – fully static, MIT-licensed, BYOK SEO writing tool.
+      OpenSEO Studio v0.7.0 – fully static, MIT-licensed, BYOK SEO writing tool.
     </p>
   </footer>
 

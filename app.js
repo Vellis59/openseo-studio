@@ -5,6 +5,17 @@ const MODEL_PRICING = {
   default: { prompt: 0.003, completion: 0.006 }
 };
 
+function buildOpenRouterHeaders(apiKey) {
+  const origin = window.location?.origin || "https://openseo.studio";
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    "X-Title": "OpenSEO Studio",
+    "HTTP-Referer": origin
+  };
+
+  return headers;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const menuToggle = document.getElementById("menuToggle");
   const menuPanel = document.getElementById("menuPanel");
@@ -1092,9 +1103,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const response = await fetch(OPENROUTER_MODELS_URL, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`
-        }
+        headers: buildOpenRouterHeaders(apiKey)
       });
 
       if (!response.ok) {
@@ -1526,7 +1535,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const response = await fetch(OPENROUTER_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        ...buildOpenRouterHeaders(apiKey),
         "Content-Type": "application/json"
       },
       body: JSON.stringify(body)

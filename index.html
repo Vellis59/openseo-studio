@@ -76,6 +76,20 @@
         <option value="">Enter your API key to load models</option>
       </select>
 
+      <label class="field-label" for="imageModelSelect">
+        Image generation model (optional)
+      </label>
+      <select id="imageModelSelect" class="field-input">
+        <option value="">None</option>
+        <option value="stability/sdxl">stability/sdxl</option>
+        <option value="stability/sdxl-turbo">stability/sdxl-turbo</option>
+        <option value="black-forest-labs/flux-1.1-pro">black-forest-labs/flux-1.1-pro</option>
+      </select>
+      <label class="checkbox-row">
+        <input type="checkbox" id="generateCoverCheckbox">
+        <span>Generate cover image</span>
+      </label>
+
       <label class="field-label" for="presetSelect">
   Preset
 </label>
@@ -100,6 +114,38 @@
   <input type="checkbox" id="tocCheckbox">
   <span>Add Markdown Table of Contents</span>
 </label>
+
+      <div class="expert-mode">
+        <label class="checkbox-row">
+          <input type="checkbox" id="expertToggle">
+          <span>Expert Mode (advanced parameters)</span>
+        </label>
+        <div id="expertPanel" class="expert-panel hidden">
+          <div class="grid-2">
+            <div>
+              <label class="field-label" for="temperatureInput">Temperature</label>
+              <input type="number" id="temperatureInput" class="field-input" min="0" max="2" step="0.1" value="0.7">
+            </div>
+            <div>
+              <label class="field-label" for="maxTokensInput">Max tokens</label>
+              <input type="number" id="maxTokensInput" class="field-input" min="256" max="4096" step="64" value="2048">
+            </div>
+            <div>
+              <label class="field-label" for="topPInput">Top-p</label>
+              <input type="number" id="topPInput" class="field-input" min="0" max="1" step="0.05" value="1">
+            </div>
+            <div>
+              <label class="field-label" for="frequencyPenaltyInput">Frequency penalty</label>
+              <input type="number" id="frequencyPenaltyInput" class="field-input" min="-2" max="2" step="0.1" value="0">
+            </div>
+          </div>
+          <div class="estimate-box">
+            <p class="small-note"><strong>Token estimate:</strong> <span id="tokenEstimate">—</span></p>
+            <p class="small-note"><strong>Estimated cost:</strong> <span id="costEstimate">—</span></p>
+            <p class="small-note"><strong>Monthly spend (local):</strong> <span id="monthlySpend">$0.00</span></p>
+          </div>
+        </div>
+      </div>
 
 <div class="config-actions">
   <button type="button" id="exportConfigBtn" class="btn-secondary">Export config (JSON)</button>
@@ -201,6 +247,7 @@
         >
 
         <div class="actions-row">
+          <button type="button" id="planBtn" class="btn-secondary">Generate plan</button>
           <button type="button" id="generateBtn" class="btn-primary">
             Generate article
           </button>
@@ -223,6 +270,23 @@
             <span id="progressLabel">Ready</span>
             <span id="etaLabel">—</span>
           </div>
+        </div>
+
+        <div class="workflow">
+          <div class="step" id="stepPlan">Step 1: Plan</div>
+          <div class="step" id="stepReview">Step 2: Review</div>
+          <div class="step" id="stepGenerate">Step 3: Generate</div>
+        </div>
+
+        <div class="plan-panel">
+          <div class="split-header">
+            <div>
+              <label class="field-label" for="planEditor">Plan (H1/H2/H3)</label>
+              <p class="field-help">The AI drafts a plan. Tweak it before full generation.</p>
+            </div>
+            <button type="button" id="regeneratePlanBtn" class="btn-ghost">Regenerate plan</button>
+          </div>
+          <textarea id="planEditor" class="output-area plan-area" placeholder="Plan will appear here..." spellcheck="false"></textarea>
         </div>
 
         <div class="split-header">
@@ -257,6 +321,10 @@
               spellcheck="false"
               placeholder="Your article will appear here as pure Markdown..."
             ></textarea>
+            <div class="selection-actions">
+              <button type="button" id="regenSelectionBtn" class="btn-secondary">Regenerate selection</button>
+              <button type="button" id="toneSelectionBtn" class="btn-ghost">Change tone</button>
+            </div>
           </div>
           <div class="panel preview-panel" id="previewPanel" aria-live="polite">
             <div class="panel-header">
@@ -269,6 +337,20 @@
               <p class="preview-placeholder">Start typing or generate content to see the preview.</p>
             </div>
           </div>
+        </div>
+
+        <div class="image-panel" id="imagePanel" aria-live="polite">
+          <div class="split-header">
+            <div>
+              <p class="panel-title">Generated cover image</p>
+              <p class="panel-sub">Based on your validated H1. Not inserted automatically.</p>
+            </div>
+            <button type="button" id="downloadImageBtn" class="btn-secondary" disabled>Download image</button>
+          </div>
+          <div class="image-preview" id="imagePreview">
+            <p class="field-help">Enable “Generate cover image” in settings to get a preview.</p>
+          </div>
+          <p class="small-note" id="altTextNote"></p>
         </div>
       </form>
     </section>
@@ -291,7 +373,7 @@
 
   <footer class="footer">
     <p class="footer-text">
-      OpenSEO Studio v0.5.0 – fully static, MIT-licensed, BYOK SEO writing tool.
+      OpenSEO Studio v0.6.0 – fully static, MIT-licensed, BYOK SEO writing tool.
     </p>
   </footer>
 

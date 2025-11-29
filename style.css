@@ -543,6 +543,112 @@ body {
   margin-top: 0.9rem;
 }
 
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 0.9fr);
+  gap: 1rem;
+}
+
+.insight-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.insight-card {
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 85%, transparent);
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+  border-radius: 0.9rem;
+  padding: 0.9rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.seo-score-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent-soft) 40%, var(--bg-card));
+  font-weight: 700;
+}
+
+.score-bar {
+  margin: 0.6rem 0;
+  width: 100%;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--border-subtle) 55%, transparent);
+  overflow: hidden;
+}
+
+.score-bar > div {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent-secondary), var(--accent));
+  transition: width 0.3s ease;
+}
+
+.insight-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.insight-list li {
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--bg-card) 96%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+  font-size: 0.88rem;
+}
+
+.insight-suggestions {
+  margin-top: 0.6rem;
+  border-top: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+  padding-top: 0.5rem;
+}
+
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+}
+
+.insight-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.insight-value {
+  margin: 0.15rem 0 0;
+  font-weight: 700;
+}
+
+.metadata-fields {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.metadata-text {
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--bg-card) 96%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+  font-size: 0.9rem;
+}
+
+.complex-sentence {
+  background: color-mix(in srgb, var(--danger) 25%, transparent);
+  color: inherit;
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.15rem;
+}
+
 .panel {
   border: 1px solid color-mix(in srgb, var(--border-subtle) 85%, transparent);
   background: var(--bg-card);
@@ -765,6 +871,10 @@ body {
 }
 
 @media (max-width: 900px) {
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
   .split-layout {
     grid-template-columns: 1fr;
   }

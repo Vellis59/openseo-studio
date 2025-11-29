@@ -62,6 +62,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const stepReview = document.getElementById("stepReview");
   const stepGenerate = document.getElementById("stepGenerate");
 
+  const generateMetadataBtn = document.getElementById("generateMetadataBtn");
+  const seoScoreValue = document.getElementById("seoScoreValue");
+  const seoScoreBar = document.getElementById("seoScoreBar");
+  const seoChecksList = document.getElementById("seoChecksList");
+  const seoSuggestionsList = document.getElementById("seoSuggestionsList");
+  const readabilityScoreEl = document.getElementById("readabilityScore");
+  const averageSentenceLengthEl = document.getElementById("averageSentenceLength");
+  const complexSentencesList = document.getElementById("complexSentencesList");
+  const seoTitleText = document.getElementById("seoTitleText");
+  const metaDescriptionText = document.getElementById("metaDescriptionText");
+  const secondaryKeywordsText = document.getElementById("secondaryKeywordsText");
+
   const regenSelectionBtn = document.getElementById("regenSelectionBtn");
   const toneSelectionBtn = document.getElementById("toneSelectionBtn");
 
@@ -588,6 +600,234 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function escapeRegex(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function parseHeadings(markdown) {
+    return markdown
+      .split(/\n/)
+      .map((line) => {
+        const match = line.match(/^(#{1,6})\s+(.*)/);
+        if (!match) return null;
+        return { level: match[1].length, text: match[2].trim() };
+      })
+      .filter(Boolean);
+  }
+
+  function analyzeSeo(content, keyword) {
+    const cleanContent = content || "";
+    const keywordNormalized = (keyword || "").trim().toLowerCase();
+    const words = cleanContent.match(/\b[\p{L}'-]+\b/gu) || [];
+    const wordCount = words.length;
+    const headings = parseHeadings(cleanContent);
+
+    let score = 0;
+    const checks = [];
+    const suggestions = [];
+
+    const h1 = headings.find((h) => h.level === 1);
+    const h2 = headings.find((h) => h.level === 2);
+
+    if (h1) {
+      const hasKeyword = keywordNormalized && h1.text.toLowerCase().includes(keywordNormalized);
+      score += hasKeyword ? 22 : 14;
+      checks.push(`${hasKeyword ? "✅" : "⚠️"} Keyword in H1`);
+      if (!hasKeyword && keywordNormalized) {
+        suggestions.push("Add the main keyword to your H1.");
+      }
+    } else {
+      suggestions.push("Add a clear H1 heading at the top.");
+    }
+
+    if (h2) {
+      const hasKeywordH2 = keywordNormalized && h2.text.toLowerCase().includes(keywordNormalized);
+      score += hasKeywordH2 ? 16 : 10;
+      checks.push(`${hasKeywordH2 ? "✅" : "⚠️"} Keyword appears in an H2`);
+      if (!hasKeywordH2 && keywordNormalized) {
+        suggestions.push("Add the keyword to at least one H2.");
+      }
+    } else {
+      suggestions.push("Add H2 subheadings to structure the article.");
+    }
+
+    const keywordCount = keywordNormalized
+      ? (cleanContent.toLowerCase().match(new RegExp(`\\b${escapeRegex(keywordNormalized)}\\b`, "g")) || []).length
+      : 0;
+    const density = wordCount ? (keywordCount / wordCount) * 100 : 0;
+    const idealDensity = 2;
+    const densityScore = 26 - Math.min(20, Math.abs(density - idealDensity) * 4);
+    score += Math.max(4, densityScore);
+    checks.push(`ℹ️ Keyword density: ${density.toFixed(2)}% (${keywordCount} mentions)`);
+    if (density < 1 && keywordNormalized) {
+      suggestions.push("Increase keyword usage slightly (aim for ~1-3%).");
+    } else if (density > 3.5) {
+      suggestions.push("Reduce keyword repetition to avoid stuffing.");
+    }
+
+    const validHierarchy = (() => {
+      if (!headings.length) return false;
+      let lastLevel = headings[0].level;
+      if (lastLevel !== 1) return false;
+      for (let i = 1; i < headings.length; i++) {
+        const level = headings[i].level;
+        if (level - lastLevel > 1) return false;
+        lastLevel = level;
+      }
+      return true;
+    })();
+
+    score += validHierarchy ? 16 : 6;
+    checks.push(`${validHierarchy ? "✅" : "⚠️"} Heading hierarchy H1 > H2 > H3`);
+    if (!validHierarchy) {
+      suggestions.push("Reorder headings to follow H1 > H2 > H3 without skipping levels.");
+    }
+
+    const lengthScore = (() => {
+      if (wordCount >= 800 && wordCount <= 2500) return 20;
+      if (wordCount >= 600 && wordCount < 800) return 14;
+      if (wordCount > 2500 && wordCount <= 3200) return 14;
+      return 8;
+    })();
+    score += lengthScore;
+    checks.push(`ℹ️ Length: ${wordCount} words`);
+    if (wordCount < 800) {
+      suggestions.push("Expand the article to reach at least 800 words.");
+    } else if (wordCount > 3000) {
+      suggestions.push("Trim or split very long sections to stay concise.");
+    }
+
+    return {
+      score: Math.min(100, Math.max(0, Math.round(score))),
+      checks,
+      suggestions,
+      density,
+      wordCount
+    };
+  }
+
+  function splitSentences(text) {
+    return (text || "")
+      .replace(/\s+/g, " ")
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  function countSyllables(word) {
+    const normalized = (word || "").toLowerCase();
+    const parts = normalized.match(/[aeiouyàâäáãåæçéèêëíìîïïòóôöõœùúûü]+/gi);
+    return parts ? Math.max(1, parts.length) : 1;
+  }
+
+  function computeReadability(content, language) {
+    const sentences = splitSentences(content);
+    const words = (content.match(/\b[\p{L}'-]+\b/gu) || []).map((w) => w.trim());
+    const wordCount = words.length || 1;
+    const sentenceCount = sentences.length || 1;
+    const syllables = words.reduce((acc, word) => acc + countSyllables(word), 0);
+
+    const wordsPerSentence = wordCount / sentenceCount;
+    const syllablesPerWord = syllables / wordCount;
+    const isFrench = (language || "").toLowerCase().includes("french");
+
+    const score = isFrench
+      ? 207 - 1.015 * wordsPerSentence - 73.6 * syllablesPerWord
+      : 206.835 - 1.015 * wordsPerSentence - 84.6 * syllablesPerWord;
+
+    const complexSentences = sentences.filter((s) => s.split(/\s+/).filter(Boolean).length > 25);
+
+    return {
+      score: Math.round(score),
+      averageSentenceLength: Math.round(wordsPerSentence * 10) / 10,
+      complexSentences
+    };
+  }
+
+  function renderInsightList(element, items, emptyText) {
+    if (!element) return;
+    element.innerHTML = "";
+    if (!items || !items.length) {
+      const li = document.createElement("li");
+      li.textContent = emptyText || "No data yet.";
+      element.appendChild(li);
+      return;
+    }
+
+    items.forEach((item) => {
+      const li = document.createElement("li");
+      li.textContent = item;
+      element.appendChild(li);
+    });
+  }
+
+  function highlightComplexSentences(sentences) {
+    if (!previewEl) return;
+    previewEl.querySelectorAll(".complex-sentence").forEach((mark) => {
+      const textNode = document.createTextNode(mark.textContent);
+      mark.replaceWith(textNode);
+    });
+
+    const targets = (sentences || []).filter(Boolean);
+    if (!targets.length) return;
+
+    const walker = document.createTreeWalker(previewEl, NodeFilter.SHOW_TEXT, null);
+    while (walker.nextNode() && targets.length) {
+      const node = walker.currentNode;
+      const text = node.textContent;
+      if (!text || !text.trim()) continue;
+
+      const lower = text.toLowerCase();
+      const foundIndex = targets.findIndex((sentence) => lower.includes(sentence.toLowerCase()));
+      if (foundIndex === -1) continue;
+
+      const sentence = targets[foundIndex];
+      const idx = lower.indexOf(sentence.toLowerCase());
+      const before = text.slice(0, idx);
+      const match = text.slice(idx, idx + sentence.length);
+      const after = text.slice(idx + sentence.length);
+
+      const fragment = document.createDocumentFragment();
+      if (before) fragment.appendChild(document.createTextNode(before));
+      const mark = document.createElement("mark");
+      mark.className = "complex-sentence";
+      mark.textContent = match;
+      fragment.appendChild(mark);
+      if (after) fragment.appendChild(document.createTextNode(after));
+
+      node.parentNode.replaceChild(fragment, node);
+      targets.splice(foundIndex, 1);
+    }
+  }
+
+  function updateInsights() {
+    const content = outputArea ? outputArea.value : "";
+    const keyword = keywordInput ? keywordInput.value : "";
+    const language = languageSelect ? languageSelect.value : "English";
+
+    const seo = analyzeSeo(content, keyword);
+    if (seoScoreValue) seoScoreValue.textContent = Number.isFinite(seo.score) ? seo.score : "—";
+    if (seoScoreBar) {
+      seoScoreBar.style.width = `${seo.score}%`;
+    }
+    renderInsightList(seoChecksList, seo.checks, "Start writing to see checks.");
+    renderInsightList(seoSuggestionsList, seo.suggestions, "No suggestions — looking good!");
+
+    const readability = computeReadability(content, language);
+    if (readabilityScoreEl) {
+      readabilityScoreEl.textContent = Number.isFinite(readability.score) ? readability.score : "—";
+    }
+    if (averageSentenceLengthEl) {
+      averageSentenceLengthEl.textContent = `${readability.averageSentenceLength || 0} words`;
+    }
+    renderInsightList(
+      complexSentencesList,
+      readability.complexSentences,
+      "No complex sentences detected."
+    );
+    highlightComplexSentences(readability.complexSentences);
+  }
+
   function estimateTokens() {
     const lengthLabel = lengthSelect ? lengthSelect.value.toLowerCase() : "";
     const lengthMap = {
@@ -665,15 +905,23 @@ document.addEventListener("DOMContentLoaded", () => {
     outputArea.addEventListener("input", () => {
       updateMetrics();
       renderPreview(outputArea.value);
+      updateInsights();
     });
     updateMetrics();
     renderPreview(outputArea.value);
+    updateInsights();
   }
 
   [keywordInput, lengthSelect, languageSelect, toneSelect, extraInput].forEach((el) => {
     if (!el) return;
-    el.addEventListener("change", updateEstimates);
-    el.addEventListener("input", updateEstimates);
+    el.addEventListener("change", () => {
+      updateEstimates();
+      updateInsights();
+    });
+    el.addEventListener("input", () => {
+      updateEstimates();
+      updateInsights();
+    });
   });
 
   if (planEditor) {
@@ -904,6 +1152,7 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.classList.remove("error", "loading");
       updateMetrics();
       renderPreview("");
+      updateInsights();
     });
   }
 
@@ -956,6 +1205,7 @@ document.addEventListener("DOMContentLoaded", () => {
       outputArea.value = entry.content || "";
       updateMetrics();
       renderPreview(entry.content || "");
+      updateInsights();
       statusEl.textContent = `Loaded “${entry.title}” from history.`;
       statusEl.classList.remove("error", "loading");
       closeHistoryOverlay();
@@ -966,7 +1216,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function buildConfigSnapshot() {
     return {
-      version: "0.6.0",
+      version: "0.7.0",
       preferences: {
         theme: resolveTheme(),
         model: modelSelect ? modelSelect.value : "",
@@ -1425,6 +1675,7 @@ document.addEventListener("DOMContentLoaded", () => {
         outputArea.value = content;
         updateMetrics();
         renderPreview(content);
+        updateInsights();
         addHistoryEntry({ content, keyword });
         statusEl.textContent = "Article generated. You can now copy the Markdown.";
         statusEl.classList.remove("loading");
@@ -1445,6 +1696,136 @@ document.addEventListener("DOMContentLoaded", () => {
         generateBtn.textContent = "Generate article";
       }
     });
+  }
+
+  /* ---------- Metadata generation ---------- */
+
+  function parseMetadataResponse(raw) {
+    if (!raw) return {};
+
+    const trimmed = raw.trim();
+
+    const jsonFenceMatch = trimmed.match(/```json\s*([\s\S]*?)```/i);
+    const fencedFallback = jsonFenceMatch ? jsonFenceMatch[1].trim() : null;
+    const jsonLikeMatch = trimmed.match(/\{[\s\S]*\}/);
+    const jsonCandidate = fencedFallback || jsonLikeMatch?.[0] || trimmed;
+
+    try {
+      const parsed = JSON.parse(jsonCandidate);
+      return {
+        seo_title: parsed.seo_title || parsed.title || parsed.seoTitle,
+        meta_description: parsed.meta_description || parsed.description || parsed.metaDescription,
+        secondary_keywords: parsed.secondary_keywords || parsed.keywords || parsed.secondaryKeywords
+      };
+    } catch (err) {
+      const titleMatch = trimmed.match(/title[:\-]\s*(.+)/i);
+      const descriptionMatch = trimmed.match(/description[:\-]\s*(.+)/i);
+      const keywordsMatch = trimmed.match(/keywords?[:\-]\s*(.+)/i);
+      return {
+        seo_title: titleMatch ? titleMatch[1].trim() : "",
+        meta_description: descriptionMatch ? descriptionMatch[1].trim() : "",
+        secondary_keywords: keywordsMatch ? keywordsMatch[1].trim() : ""
+      };
+    }
+  }
+
+  function renderMetadata(metadata) {
+    if (!metadata) return;
+    if (seoTitleText) {
+      seoTitleText.textContent = metadata.seo_title || "Awaiting title";
+    }
+    if (metaDescriptionText) {
+      metaDescriptionText.textContent = metadata.meta_description || "Awaiting description";
+    }
+    if (secondaryKeywordsText) {
+      const value = Array.isArray(metadata.secondary_keywords)
+        ? metadata.secondary_keywords.join(", ")
+        : metadata.secondary_keywords || "";
+      secondaryKeywordsText.textContent = value || "Awaiting keywords";
+    }
+  }
+
+  async function generateMetadata() {
+    statusEl.textContent = "";
+    statusEl.classList.remove("error", "loading");
+
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) {
+      statusEl.textContent = "Please provide your OpenRouter API key in the settings menu.";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const keyword = keywordInput.value.trim();
+    if (!keyword) {
+      statusEl.textContent = "Please enter a main keyword.";
+      statusEl.classList.add("error");
+      keywordInput.focus();
+      return;
+    }
+
+    const model = modelSelect.value;
+    if (!model) {
+      statusEl.textContent = "Please select a model before generating metadata.";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const language = languageSelect ? languageSelect.value : "English";
+    const articleContext = (outputArea ? outputArea.value : "").slice(0, 6000) || "(no draft content provided)";
+
+    const body = {
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an SEO metadata assistant. Respond in JSON with keys: seo_title (<=60 chars), meta_description (<=160 chars, clickable), secondary_keywords (comma-separated)."
+        },
+        {
+          role: "user",
+          content: `Language: ${language}. Main keyword: ${keyword}.\nContext (may be partial):\n${articleContext}`
+        }
+      ],
+      temperature: 0.5,
+      top_p: 1,
+      frequency_penalty: 0
+    };
+
+    let endProgress;
+    try {
+      if (generateMetadataBtn) {
+        generateMetadataBtn.disabled = true;
+        generateMetadataBtn.textContent = "Generating metadata...";
+      }
+      statusEl.textContent = "Generating SEO metadata...";
+      statusEl.classList.remove("error");
+      statusEl.classList.add("loading");
+
+      endProgress = startProgress("short");
+      const raw = await callChat(body, apiKey);
+      const metadata = parseMetadataResponse(raw);
+      renderMetadata(metadata);
+      statusEl.textContent = "Metadata ready.";
+      statusEl.classList.remove("loading");
+      recordCost(model, 300);
+      updateEstimates();
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = `Error generating metadata: ${err.message}`;
+      statusEl.classList.add("error");
+      statusEl.classList.remove("loading");
+    } finally {
+      if (endProgress) endProgress(!statusEl.classList.contains("error"));
+      if (generateMetadataBtn) {
+        generateMetadataBtn.disabled = false;
+        generateMetadataBtn.textContent = "Generate SEO metadata";
+      }
+    }
+  }
+
+  if (generateMetadataBtn) {
+    generateMetadataBtn.addEventListener("click", generateMetadata);
   }
 
   /* ---------- Selection regeneration ---------- */
@@ -1506,6 +1887,7 @@ document.addEventListener("DOMContentLoaded", () => {
       outputArea.value = newValue;
       updateMetrics();
       renderPreview(newValue);
+      updateInsights();
       statusEl.textContent = "Selection updated.";
       statusEl.classList.remove("loading");
       recordCost(modelSelect.value, Math.min(maxTokens, 400));

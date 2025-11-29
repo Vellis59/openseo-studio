@@ -5,11 +5,11 @@ OpenSEO Studio is a **fully client-side, static SEO writing tool** powered by AI
 No backend. No database. Bring Your Own API Key (BYOK).  
 Your API key stays in your browser — you keep full control.
 
-This repository contains **OpenSEO Studio v0.5.0**, including split-screen editing, light/dark theme controls, offline-ready PWA support, refreshed mobile UX, and new client-side persistence & security controls.
+This repository contains **OpenSEO Studio v0.6.0**, including split-screen editing, light/dark theme controls, offline-ready PWA support, refreshed mobile UX, and new client-side persistence & security controls.
 
 ---
 
-## Features (v0.5.0)
+## Features (v0.6.0)
 
 ### 🧩 Core Functionality
 - 100% client-side, static HTML/CSS/JS
@@ -29,20 +29,13 @@ When you enter your OpenRouter API key, the app automatically fetches all models
 
 (The model list is dynamically loaded — it may differ for each user)
 
-### ✨ New in v0.5.0
-- **Article history (local, client-side)**
-  - Automatically keeps the 20 most recent articles with title, keyword, and timestamp.
-  - Search bar and overlay to browse, then reload a previous article back into the editor.
-- **Safer API key handling**
-  - Encrypts the OpenRouter API key with an optional master password (fallback to Base64 if none).
-  - "Anonymous mode" toggle to run the app without saving anything to `localStorage`.
-- **Configuration import/export**
-  - Export prompts, preferences, and history as a JSON file (API key excluded).
-  - Import the JSON to restore your setup instantly.
-- **Existing UX improvements retained**
-  - Light/dark theme toggle with stored preference.
-  - Split editor/preview layout with live counters.
-  - PWA/offline cache and mobile-friendly gestures.
+### ✨ New in v0.6.0
+- **Expert Mode controls** to tweak temperature, max tokens, top-p, and frequency penalty, with token and cost estimations plus a local monthly spend tracker.
+- **3-step workflow** (plan → review → generate) with editable outlines and step indicators for section-by-section generation.
+- **Selective regeneration tools** to rewrite or retone highlighted passages without rebuilding the full article.
+- **Dynamic costs** and outline-aware prompts designed for partial/section-by-section generation.
+
+> Note: The previous cover image generator is temporarily disabled while we revisit the feature.
 
 ---
 

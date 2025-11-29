@@ -698,6 +698,72 @@ body {
   font-size: 0.85rem;
 }
 
+.expert-mode {
+  margin: 1rem 0 0.25rem;
+  padding: 0.9rem;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-card) 90%, transparent);
+}
+
+.expert-panel.hidden {
+  display: none;
+}
+
+.expert-panel .grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+}
+
+.estimate-box {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent-soft) 40%, var(--bg-card));
+}
+
+.workflow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.workflow .step {
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card-secondary);
+  font-size: 0.9rem;
+}
+
+.workflow .step.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 40%, var(--bg-card));
+}
+
+.workflow .step.done {
+  border-color: var(--accent-secondary);
+  background: color-mix(in srgb, var(--accent-secondary) 12%, var(--bg-card));
+}
+
+.plan-panel {
+  margin: 1rem 0;
+}
+
+.plan-area {
+  min-height: 160px;
+  margin-top: 0.25rem;
+}
+
+.selection-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 900px) {
   .split-layout {
     grid-template-columns: 1fr;

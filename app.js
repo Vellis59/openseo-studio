@@ -1,6 +1,10 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 
+const MODEL_PRICING = {
+  default: { prompt: 0.003, completion: 0.006 }
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   const menuToggle = document.getElementById("menuToggle");
   const menuPanel = document.getElementById("menuPanel");
@@ -30,6 +34,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const promptModeSelect = document.getElementById("promptMode");
   const tocCheckbox = document.getElementById("tocCheckbox");
 
+  const expertToggle = document.getElementById("expertToggle");
+  const expertPanel = document.getElementById("expertPanel");
+  const temperatureInput = document.getElementById("temperatureInput");
+  const maxTokensInput = document.getElementById("maxTokensInput");
+  const topPInput = document.getElementById("topPInput");
+  const frequencyPenaltyInput = document.getElementById("frequencyPenaltyInput");
+  const tokenEstimateEl = document.getElementById("tokenEstimate");
+  const costEstimateEl = document.getElementById("costEstimate");
+  const monthlySpendEl = document.getElementById("monthlySpend");
+
   const previewEl = document.getElementById("preview");
   const wordCountEl = document.getElementById("wordCount");
   const charCountEl = document.getElementById("charCount");
@@ -40,6 +54,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const progressLabel = document.getElementById("progressLabel");
   const etaLabel = document.getElementById("etaLabel");
   const progressShell = document.querySelector(".progress-shell");
+
+  const planBtn = document.getElementById("planBtn");
+  const planEditor = document.getElementById("planEditor");
+  const regeneratePlanBtn = document.getElementById("regeneratePlanBtn");
+  const stepPlan = document.getElementById("stepPlan");
+  const stepReview = document.getElementById("stepReview");
+  const stepGenerate = document.getElementById("stepGenerate");
+
+  const regenSelectionBtn = document.getElementById("regenSelectionBtn");
+  const toneSelectionBtn = document.getElementById("toneSelectionBtn");
 
   const openHistoryBtn = document.getElementById("openHistoryBtn");
   const historyOverlay = document.getElementById("historyOverlay");
@@ -58,6 +82,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const STORAGE_KEY_MODEL = "openseo_default_model";
   const STORAGE_KEY_THEME = "openseo_color_theme";
   const STORAGE_KEY_HISTORY = "openseo_article_history";
+  const STORAGE_KEY_SPEND = "openseo_monthly_spend";
 
   const MAX_HISTORY_ITEMS = 20;
 
@@ -75,9 +100,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function clearAppStorage() {
-    [STORAGE_KEY_API, STORAGE_KEY_MODEL, STORAGE_KEY_THEME, STORAGE_KEY_HISTORY].forEach((key) => {
+    [STORAGE_KEY_API, STORAGE_KEY_MODEL, STORAGE_KEY_THEME, STORAGE_KEY_HISTORY, STORAGE_KEY_SPEND].forEach((key) => {
       window.localStorage.removeItem(key);
     });
+  }
+
+  function loadMonthlySpend() {
+    if (isAnonymous) return 0;
+    const raw = window.localStorage.getItem(STORAGE_KEY_SPEND);
+    return raw ? parseFloat(raw) || 0 : 0;
+  }
+
+  function persistMonthlySpend(value) {
+    if (isAnonymous) return;
+    setItemGuarded(STORAGE_KEY_SPEND, String(value.toFixed(2)));
   }
 
   function base64Encode(text) {
@@ -453,6 +489,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (extraInput) {
         extraInput.value = preset.extra;
       }
+      updateEstimates();
     });
   }
 
@@ -507,6 +544,7 @@ document.addEventListener("DOMContentLoaded", () => {
       clearModelOptions();
       statusEl.textContent = "Anonymous mode enabled. Nothing will be saved.";
       statusEl.classList.remove("error", "loading");
+      updateEstimates();
     } else {
       historyCache = loadHistoryFromStorage();
       renderHistory();
@@ -518,6 +556,20 @@ document.addEventListener("DOMContentLoaded", () => {
   if (anonymousModeCheckbox) {
     anonymousModeCheckbox.addEventListener("change", () => {
       applyAnonymousMode(anonymousModeCheckbox.checked);
+    });
+  }
+
+  /* ---------- Expert mode ---------- */
+
+  function setExpertMode(active) {
+    if (!expertPanel) return;
+    expertPanel.classList.toggle("hidden", !active);
+  }
+
+  if (expertToggle) {
+    expertToggle.addEventListener("change", () => {
+      setExpertMode(expertToggle.checked);
+      updateEstimates();
     });
   }
 
@@ -533,6 +585,60 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (charCountEl) {
       charCountEl.textContent = `${chars} chars`;
+    }
+  }
+
+  function estimateTokens() {
+    const lengthLabel = lengthSelect ? lengthSelect.value.toLowerCase() : "";
+    const lengthMap = {
+      short: 1100,
+      standard: 1900,
+      long: 2600,
+      ultra: 3200
+    };
+    const base = Object.entries(lengthMap).find(([key]) => lengthLabel.includes(key));
+    const planLines = planEditor ? planEditor.value.split(/\n/).filter(Boolean).length : 0;
+    const bonus = planLines * 25;
+    const tokens = (base ? lengthMap[base[0]] : 1800) + bonus;
+    return Math.max(600, Math.min(tokens, maxTokensInput ? Number(maxTokensInput.value) || tokens : tokens));
+  }
+
+  function priceForModel(model) {
+    if (!model) return MODEL_PRICING.default;
+    return MODEL_PRICING[model] || MODEL_PRICING.default;
+  }
+
+  function recordCost(model, tokens) {
+    const pricing = priceForModel(model);
+    let cost = 0;
+    if (pricing.prompt) {
+      cost = (tokens / 1000) * (pricing.prompt + pricing.completion);
+    }
+
+    if (cost > 0) {
+      const current = loadMonthlySpend();
+      const next = current + cost;
+      persistMonthlySpend(next);
+    }
+
+    return cost;
+  }
+
+  function updateEstimates() {
+    if (!tokenEstimateEl || !costEstimateEl) return;
+    const tokens = estimateTokens();
+    tokenEstimateEl.textContent = `${tokens.toLocaleString()} tok.`;
+
+    const model = modelSelect ? modelSelect.value : "";
+    const pricing = priceForModel(model);
+    const cost = pricing.prompt
+      ? (tokens / 1000) * (pricing.prompt + pricing.completion)
+      : 0;
+    costEstimateEl.textContent = cost ? `$${cost.toFixed(3)}` : "—";
+
+    if (monthlySpendEl) {
+      const spend = loadMonthlySpend();
+      monthlySpendEl.textContent = `$${spend.toFixed(2)}`;
     }
   }
 
@@ -563,6 +669,21 @@ document.addEventListener("DOMContentLoaded", () => {
     updateMetrics();
     renderPreview(outputArea.value);
   }
+
+  [keywordInput, lengthSelect, languageSelect, toneSelect, extraInput].forEach((el) => {
+    if (!el) return;
+    el.addEventListener("change", updateEstimates);
+    el.addEventListener("input", updateEstimates);
+  });
+
+  if (planEditor) {
+    planEditor.addEventListener("input", updateEstimates);
+  }
+
+  [modelSelect, temperatureInput, maxTokensInput, topPInput, frequencyPenaltyInput].forEach((el) => {
+    if (!el) return;
+    el.addEventListener("change", updateEstimates);
+  });
 
   /* ---------- Mobile view toggles & gestures ---------- */
 
@@ -845,7 +966,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function buildConfigSnapshot() {
     return {
-      version: "0.5.0",
+      version: "0.6.0",
       preferences: {
         theme: resolveTheme(),
         model: modelSelect ? modelSelect.value : "",
@@ -856,7 +977,12 @@ document.addEventListener("DOMContentLoaded", () => {
         preset: presetSelect ? presetSelect.value : "",
         promptMode: promptModeSelect ? promptModeSelect.value : "standard",
         toc: tocCheckbox ? tocCheckbox.checked : false,
-        anonymousMode: !!(anonymousModeCheckbox && anonymousModeCheckbox.checked)
+        anonymousMode: !!(anonymousModeCheckbox && anonymousModeCheckbox.checked),
+        expertMode: !!(expertToggle && expertToggle.checked),
+        temperature: temperatureInput ? Number(temperatureInput.value) : 0.7,
+        maxTokens: maxTokensInput ? Number(maxTokensInput.value) : 2048,
+        topP: topPInput ? Number(topPInput.value) : 1,
+        frequencyPenalty: frequencyPenaltyInput ? Number(frequencyPenaltyInput.value) : 0
       },
       history: historyCache
     };
@@ -878,6 +1004,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (presetSelect && prefs.preset !== undefined) presetSelect.value = prefs.preset;
     if (promptModeSelect && prefs.promptMode) promptModeSelect.value = prefs.promptMode;
     if (tocCheckbox && typeof prefs.toc === "boolean") tocCheckbox.checked = prefs.toc;
+    if (expertToggle && typeof prefs.expertMode === "boolean") {
+      expertToggle.checked = prefs.expertMode;
+      setExpertMode(prefs.expertMode);
+    }
+    if (temperatureInput && prefs.temperature !== undefined) temperatureInput.value = prefs.temperature;
+    if (maxTokensInput && prefs.maxTokens !== undefined) maxTokensInput.value = prefs.maxTokens;
+    if (topPInput && prefs.topP !== undefined) topPInput.value = prefs.topP;
+    if (frequencyPenaltyInput && prefs.frequencyPenalty !== undefined) {
+      frequencyPenaltyInput.value = prefs.frequencyPenalty;
+    }
 
     if (prefs.theme) {
       applyTheme(prefs.theme);
@@ -940,6 +1076,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  if (expertToggle) {
+    setExpertMode(expertToggle.checked);
+  }
+  updateEstimates();
 
   /* ---------- Progress & ETA ---------- */
 
@@ -1034,7 +1175,140 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
+  async function callChat(body, apiKey) {
+    const response = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let message = `API error ${response.status}`;
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && parsed.error && parsed.error.message) {
+          message = parsed.error.message;
+        }
+      } catch {
+        // noop
+      }
+      throw new Error(message);
+    }
+
+    const data = await response.json();
+    const content =
+      data.choices &&
+      data.choices[0] &&
+      data.choices[0].message &&
+      data.choices[0].message.content
+        ? data.choices[0].message.content
+        : "";
+
+    if (!content) {
+      throw new Error("Empty or unexpected API response.");
+    }
+
+    return content;
+  }
+
   /* ---------- Generate article ---------- */
+
+  function markStep(activeStep) {
+    const steps = [stepPlan, stepReview, stepGenerate];
+    steps.forEach((step, idx) => {
+      if (!step) return;
+      const current = idx === activeStep;
+      const done = idx < activeStep;
+      step.classList.toggle("active", current);
+      step.classList.toggle("done", done);
+    });
+  }
+
+  async function generatePlan({ silent } = {}) {
+    const apiKey = apiKeyInput.value.trim();
+    const model = modelSelect.value;
+    if (!apiKey || !model) {
+      if (!silent) {
+        statusEl.textContent = "Please provide API key and model before generating a plan.";
+        statusEl.classList.add("error");
+      }
+      return null;
+    }
+
+    const keyword = keywordInput.value.trim();
+    if (!keyword) {
+      if (!silent) {
+        statusEl.textContent = "Please enter a main keyword.";
+        statusEl.classList.add("error");
+      }
+      return null;
+    }
+
+    markStep(0);
+    statusEl.textContent = "Generating outline...";
+    statusEl.classList.add("loading");
+    const length = lengthSelect.value;
+
+    const body = {
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an SEO content strategist. Return a concise Markdown outline only (H1/H2/H3) with no extra prose."
+        },
+        {
+          role: "user",
+          content: `Keyword: ${keyword}. Tone: ${toneSelect.value}. Language: ${languageSelect.value}. Length: ${length}. Outline only.`
+        }
+      ]
+    };
+
+    const temperature = expertToggle && expertToggle.checked ? Number(temperatureInput.value) || 0.7 : 0.5;
+    const maxTokens = expertToggle && expertToggle.checked ? Number(maxTokensInput.value) || 512 : 512;
+    const top_p = expertToggle && expertToggle.checked ? Number(topPInput.value) || 1 : 1;
+    const frequency_penalty = expertToggle && expertToggle.checked ? Number(frequencyPenaltyInput.value) || 0 : 0;
+
+    Object.assign(body, { temperature, max_tokens: maxTokens, top_p, frequency_penalty });
+
+    let endProgress;
+    try {
+      planBtn.disabled = true;
+      regeneratePlanBtn.disabled = true;
+      endProgress = startProgress(length);
+      const content = await callChat(body, apiKey);
+      planEditor.value = content.trim();
+      markStep(1);
+      statusEl.textContent = "Plan ready. Review or edit before generating.";
+      statusEl.classList.remove("error");
+      statusEl.classList.remove("loading");
+      recordCost(model, 400);
+      updateEstimates();
+      return content;
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = `Error while generating plan: ${err.message}`;
+      statusEl.classList.add("error");
+      statusEl.classList.remove("loading");
+      return null;
+    } finally {
+      if (endProgress) endProgress(!statusEl.classList.contains("error"));
+      planBtn.disabled = false;
+      regeneratePlanBtn.disabled = false;
+    }
+  }
+
+  if (planBtn) {
+    planBtn.addEventListener("click", () => generatePlan());
+  }
+
+  if (regeneratePlanBtn) {
+    regeneratePlanBtn.addEventListener("click", () => generatePlan());
+  }
 
   if (generateBtn) {
     generateBtn.addEventListener("click", async () => {
@@ -1061,6 +1335,10 @@ document.addEventListener("DOMContentLoaded", () => {
         statusEl.classList.add("error");
         keywordInput.focus();
         return;
+      }
+
+      if (planEditor && !planEditor.value.trim()) {
+        await generatePlan({ silent: true });
       }
 
       const language = languageSelect.value;
@@ -1090,8 +1368,14 @@ document.addEventListener("DOMContentLoaded", () => {
         language,
         tone,
         length,
-        extra
+        extra,
+        planText: planEditor ? planEditor.value : ""
       });
+
+      const temperature = expertToggle && expertToggle.checked ? Number(temperatureInput.value) || 0.7 : 0.7;
+      const maxTokens = expertToggle && expertToggle.checked ? Number(maxTokensInput.value) || undefined : undefined;
+      const top_p = expertToggle && expertToggle.checked ? Number(topPInput.value) || 1 : 1;
+      const frequency_penalty = expertToggle && expertToggle.checked ? Number(frequencyPenaltyInput.value) || 0 : 0;
 
       const body = {
         model,
@@ -1109,13 +1393,21 @@ document.addEventListener("DOMContentLoaded", () => {
             content: userPrompt
           }
         ],
-        temperature: 0.7
+        temperature,
+        top_p,
+        frequency_penalty
       };
+
+      if (maxTokens) {
+        body.max_tokens = maxTokens;
+      }
 
       let endProgress;
       try {
         generateBtn.disabled = true;
         generateBtn.textContent = "Generating...";
+
+        markStep(2);
 
         if (tocCheckbox && tocCheckbox.checked) {
           statusEl.textContent = "TOC enabled. Contacting OpenRouter...";
@@ -1128,41 +1420,7 @@ document.addEventListener("DOMContentLoaded", () => {
         endProgress = startProgress(length);
         statusEl.textContent = `${statusEl.textContent} ETA ${etaLabel ? etaLabel.textContent : "~"}`;
 
-        const response = await fetch(OPENROUTER_URL, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(body)
-        });
-
-        if (!response.ok) {
-          const text = await response.text();
-          let message = `API error ${response.status}`;
-          try {
-            const parsed = JSON.parse(text);
-            if (parsed && parsed.error && parsed.error.message) {
-              message = parsed.error.message;
-            }
-          } catch {
-            // fallback : on garde le message par défaut
-          }
-          throw new Error(message);
-        }
-
-        const data = await response.json();
-        const content =
-          data.choices &&
-          data.choices[0] &&
-          data.choices[0].message &&
-          data.choices[0].message.content
-            ? data.choices[0].message.content
-            : "";
-
-        if (!content) {
-          throw new Error("Empty or unexpected API response.");
-        }
+        const content = await callChat(body, apiKey);
 
         outputArea.value = content;
         updateMetrics();
@@ -1170,6 +1428,10 @@ document.addEventListener("DOMContentLoaded", () => {
         addHistoryEntry({ content, keyword });
         statusEl.textContent = "Article generated. You can now copy the Markdown.";
         statusEl.classList.remove("loading");
+
+        recordCost(model, estimateTokens());
+        updateEstimates();
+
       } catch (error) {
         console.error(error);
         statusEl.textContent = `Error: ${error.message}`;
@@ -1183,6 +1445,85 @@ document.addEventListener("DOMContentLoaded", () => {
         generateBtn.textContent = "Generate article";
       }
     });
+  }
+
+  /* ---------- Selection regeneration ---------- */
+
+  async function regenerateSelection({ changeTone = false } = {}) {
+    if (!outputArea) return;
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) {
+      statusEl.textContent = "API key required to regenerate.";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const start = outputArea.selectionStart;
+    const end = outputArea.selectionEnd;
+    if (start === end) {
+      statusEl.textContent = "Select a passage in the editor first.";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const selected = outputArea.value.slice(start, end).trim();
+    if (!selected) {
+      statusEl.textContent = "Empty selection.";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const contextAround = outputArea.value.slice(Math.max(0, start - 240), Math.min(outputArea.value.length, end + 240));
+    const tone = toneSelect ? toneSelect.value : "";
+
+    const temperature = expertToggle && expertToggle.checked ? Number(temperatureInput.value) || 0.7 : 0.7;
+    const maxTokens = expertToggle && expertToggle.checked ? Number(maxTokensInput.value) || 512 : 512;
+    const top_p = expertToggle && expertToggle.checked ? Number(topPInput.value) || 1 : 1;
+    const frequency_penalty = expertToggle && expertToggle.checked ? Number(frequencyPenaltyInput.value) || 0 : 0;
+
+    const prompt = changeTone
+      ? `Rewrite the following excerpt to match this tone: ${tone}. Keep the meaning and Markdown structure. Excerpt: ${selected}`
+      : `Improve and regenerate the selected excerpt, keeping the same meaning and Markdown hierarchy. Excerpt: ${selected}\nContext: ${contextAround}`;
+
+    const body = {
+      model: modelSelect.value,
+      messages: [
+        { role: "system", content: "You rewrite Markdown excerpts while keeping structure intact." },
+        { role: "user", content: prompt }
+      ],
+      temperature,
+      top_p,
+      frequency_penalty,
+      max_tokens: maxTokens
+    };
+
+    try {
+      statusEl.textContent = "Regenerating selection...";
+      statusEl.classList.remove("error");
+      statusEl.classList.add("loading");
+      const replacement = await callChat(body, apiKey);
+      const newValue = `${outputArea.value.slice(0, start)}${replacement.trim()}${outputArea.value.slice(end)}`;
+      outputArea.value = newValue;
+      updateMetrics();
+      renderPreview(newValue);
+      statusEl.textContent = "Selection updated.";
+      statusEl.classList.remove("loading");
+      recordCost(modelSelect.value, Math.min(maxTokens, 400));
+      updateEstimates();
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = `Error during selection regeneration: ${err.message}`;
+      statusEl.classList.add("error");
+      statusEl.classList.remove("loading");
+    }
+  }
+
+  if (regenSelectionBtn) {
+    regenSelectionBtn.addEventListener("click", () => regenerateSelection());
+  }
+
+  if (toneSelectionBtn) {
+    toneSelectionBtn.addEventListener("click", () => regenerateSelection({ changeTone: true }));
   }
 
   /* ---------- Service worker ---------- */
@@ -1228,7 +1569,7 @@ function minimalPrompt(lines) {
 /**
  * Build the user prompt for the SEO article generator.
  */
-function buildUserPrompt({ keyword, language, tone, length, extra }) {
+function buildUserPrompt({ keyword, language, tone, length, extra, planText }) {
   const lines = [];
 
   lines.push(
@@ -1262,6 +1603,12 @@ function buildUserPrompt({ keyword, language, tone, length, extra }) {
 
   if (extra) {
     lines.push(`Additional options or constraints: ${extra}`);
+  }
+
+  if (planText) {
+    lines.push("Use the following outline and generate each section sequentially:");
+    lines.push(planText);
+    lines.push("Expand each heading with detailed, concise paragraphs.");
   }
 
   const tocCheckbox = document.getElementById("tocCheckbox");

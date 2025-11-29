@@ -1597,6 +1597,15 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(`OpenRouter error ${response.status}: ${snippet}`);
       }
 
+      const looksHtml = contentType.includes("text/html") || rawText.trim().startsWith("<");
+      if (looksHtml) {
+        const cleanedHtml = rawText.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+        const hint = cleanedHtml.includes("Model Not Found")
+          ? "Selected image model is unavailable. Double-check the model name and that your account has access."
+          : "OpenRouter returned HTML instead of image JSON. Please retry or pick another image model.";
+        throw new Error(hint);
+      }
+
       let data;
       try {
         data = JSON.parse(rawText);

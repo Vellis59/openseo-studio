@@ -158,6 +158,13 @@ body {
   line-height: 1.5;
 }
 
+.config-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0 0.5rem;
+}
+
 /* Layout */
 
 .page {
@@ -414,6 +421,19 @@ body {
   color: var(--text-muted);
 }
 
+.icon-btn {
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+  color: var(--text-main);
+  border-radius: var(--radius-pill);
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: color-mix(in srgb, var(--bg-card) 96%, transparent);
+}
+
 /* Footer */
 
 .footer {
@@ -605,6 +625,77 @@ body {
 .preview-placeholder {
   color: var(--text-muted);
   margin: 0;
+}
+
+.history-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 30;
+}
+
+.history-overlay.open {
+  display: flex;
+}
+
+.history-panel {
+  width: min(520px, 95vw);
+  max-height: min(80vh, 700px);
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-soft);
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.history-list {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-elevated) 90%, transparent);
+  overflow: auto;
+  max-height: 460px;
+  padding: 0.4rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.history-item {
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 90%, transparent);
+  background: color-mix(in srgb, var(--bg-card) 94%, transparent);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.history-item:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 35%, var(--bg-card));
+}
+
+.history-item-title {
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+}
+
+.history-item-meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 @media (max-width: 900px) {

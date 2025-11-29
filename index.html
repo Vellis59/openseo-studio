@@ -49,6 +49,23 @@
         <span>Remember API key in this browser</span>
       </label>
 
+      <label class="field-label" for="masterPassword">
+        Master password (optional)
+        <span class="field-help">Used to encrypt your API key locally. Leave blank to use Base64.</span>
+      </label>
+      <input
+        type="password"
+        id="masterPassword"
+        class="field-input"
+        placeholder="No password set"
+        autocomplete="off"
+      >
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="anonymousMode">
+        <span>Anonymous mode (no localStorage)</span>
+      </label>
+
       <label class="field-label" for="modelSelect">
         Default model
         <span class="field-help">
@@ -83,6 +100,12 @@
   <input type="checkbox" id="tocCheckbox">
   <span>Add Markdown Table of Contents</span>
 </label>
+
+<div class="config-actions">
+  <button type="button" id="exportConfigBtn" class="btn-secondary">Export config (JSON)</button>
+  <button type="button" id="importConfigBtn" class="btn-ghost">Import config</button>
+  <input type="file" id="importConfigInput" accept="application/json" hidden>
+</div>
 
 
       <button type="button" id="resetStorageBtn" class="btn-ghost menu-reset">
@@ -187,6 +210,9 @@
           <button type="button" id="clearBtn" class="btn-ghost">
             Clear output
           </button>
+          <button type="button" id="openHistoryBtn" class="btn-ghost">
+            History
+          </button>
         </div>
 
         <p id="status" class="status-text"></p>
@@ -265,7 +291,7 @@
 
   <footer class="footer">
     <p class="footer-text">
-      OpenSEO Studio v0.4.0 – fully static, MIT-licensed, BYOK SEO writing tool.
+      OpenSEO Studio v0.5.0 – fully static, MIT-licensed, BYOK SEO writing tool.
     </p>
   </footer>
 
@@ -277,6 +303,27 @@
     <button id="onboardingClose" class="btn-primary">Got it</button>
   </div>
 </div>
+
+<aside class="history-overlay" id="historyOverlay" aria-hidden="true">
+  <div class="history-panel">
+    <div class="history-header">
+      <div>
+        <p class="panel-title">Article history</p>
+        <p class="panel-sub">Stored locally (last 20)</p>
+      </div>
+      <button class="icon-btn" id="closeHistoryBtn" aria-label="Close history">✕</button>
+    </div>
+    <input
+      type="search"
+      id="historySearch"
+      class="field-input"
+      placeholder="Search by title or keyword"
+      aria-label="Search history"
+    >
+    <div class="history-list" id="historyList" role="list" aria-live="polite"></div>
+    <p class="small-note">Click an item to reload it in the editor.</p>
+  </div>
+</aside>
 
 </body>
 </html>

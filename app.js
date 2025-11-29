@@ -1701,17 +1701,26 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ---------- Metadata generation ---------- */
 
   function parseMetadataResponse(raw) {
+    if (!raw) return {};
+
+    const trimmed = raw.trim();
+
+    const jsonFenceMatch = trimmed.match(/```json\s*([\s\S]*?)```/i);
+    const fencedFallback = jsonFenceMatch ? jsonFenceMatch[1].trim() : null;
+    const jsonLikeMatch = trimmed.match(/\{[\s\S]*\}/);
+    const jsonCandidate = fencedFallback || jsonLikeMatch?.[0] || trimmed;
+
     try {
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(jsonCandidate);
       return {
         seo_title: parsed.seo_title || parsed.title || parsed.seoTitle,
         meta_description: parsed.meta_description || parsed.description || parsed.metaDescription,
         secondary_keywords: parsed.secondary_keywords || parsed.keywords || parsed.secondaryKeywords
       };
     } catch (err) {
-      const titleMatch = raw.match(/title[:\-]\s*(.+)/i);
-      const descriptionMatch = raw.match(/description[:\-]\s*(.+)/i);
-      const keywordsMatch = raw.match(/keywords?[:\-]\s*(.+)/i);
+      const titleMatch = trimmed.match(/title[:\-]\s*(.+)/i);
+      const descriptionMatch = trimmed.match(/description[:\-]\s*(.+)/i);
+      const keywordsMatch = trimmed.match(/keywords?[:\-]\s*(.+)/i);
       return {
         seo_title: titleMatch ? titleMatch[1].trim() : "",
         meta_description: descriptionMatch ? descriptionMatch[1].trim() : "",

@@ -4,9 +4,11 @@ const OPENROUTER_IMAGES_URL = "https://openrouter.ai/api/v1/images";
 
 const MODEL_PRICING = {
   default: { prompt: 0.003, completion: 0.006 },
-  "stability/sdxl": { image: 0.04 },
-  "stability/sdxl-turbo": { image: 0.025 },
-  "black-forest-labs/flux-1.1-pro": { image: 0.06 }
+  "black-forest-labs/flux.2-pro": { image: 0.06 },
+  "google/gemini-3-pro-image-preview": { image: 0 },
+  "openai/gpt-5-image-mini": { image: 0 },
+  "google/gemini-2.5-flash-image": { image: 0 },
+  "google/gemini-2.5-flash-image-preview": { image: 0 }
 };
 
 document.addEventListener("DOMContentLoaded", () => {

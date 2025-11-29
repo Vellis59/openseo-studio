@@ -1590,17 +1590,28 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       const contentType = response.headers.get("content-type") || "";
+      const rawText = await response.text();
+
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenRouter error ${response.status}: ${errorText.slice(0, 200)}`);
+        const snippet = rawText ? rawText.slice(0, 200) : response.statusText;
+        throw new Error(`OpenRouter error ${response.status}: ${snippet}`);
       }
 
-      if (!contentType.includes("application/json")) {
-        const fallback = await response.text();
-        throw new Error(`Unexpected response format (${contentType}): ${fallback.slice(0, 200)}`);
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch (parseErr) {
+        const cleaned = rawText
+          .replace(/<[^>]*>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 200);
+        const hint = cleaned
+          ? `Body: ${cleaned}`
+          : "Verify your OpenRouter key and that the selected image model is available.";
+        throw new Error(`Unexpected response format (${contentType || "unknown"}). ${hint}`);
       }
 
-      const data = await response.json();
       const imageUrl = data?.data?.[0]?.url || data?.data?.[0]?.b64_json;
       if (!imageUrl) {
         throw new Error("No image returned by OpenRouter.");

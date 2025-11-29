@@ -8,6 +8,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const apiKeyInput = document.getElementById("apiKey");
   const rememberKeyCheckbox = document.getElementById("rememberKey");
+  const masterPasswordInput = document.getElementById("masterPassword");
+  const anonymousModeCheckbox = document.getElementById("anonymousMode");
   const modelSelect = document.getElementById("modelSelect");
   const resetStorageBtn = document.getElementById("resetStorageBtn");
 
@@ -39,12 +41,163 @@ document.addEventListener("DOMContentLoaded", () => {
   const etaLabel = document.getElementById("etaLabel");
   const progressShell = document.querySelector(".progress-shell");
 
+  const openHistoryBtn = document.getElementById("openHistoryBtn");
+  const historyOverlay = document.getElementById("historyOverlay");
+  const closeHistoryBtn = document.getElementById("closeHistoryBtn");
+  const historyList = document.getElementById("historyList");
+  const historySearch = document.getElementById("historySearch");
+
+  const exportConfigBtn = document.getElementById("exportConfigBtn");
+  const importConfigBtn = document.getElementById("importConfigBtn");
+  const importConfigInput = document.getElementById("importConfigInput");
+
   const onboarding = document.getElementById("onboarding");
   const onboardingClose = document.getElementById("onboardingClose");
 
   const STORAGE_KEY_API = "openseo_openrouter_key";
   const STORAGE_KEY_MODEL = "openseo_default_model";
   const STORAGE_KEY_THEME = "openseo_color_theme";
+  const STORAGE_KEY_HISTORY = "openseo_article_history";
+
+  const MAX_HISTORY_ITEMS = 20;
+
+  let isAnonymous = false;
+  let encryptedKeyPayload = null;
+  let historyCache = [];
+
+  function setItemGuarded(key, value) {
+    if (isAnonymous) return;
+    window.localStorage.setItem(key, value);
+  }
+
+  function removeItem(key) {
+    window.localStorage.removeItem(key);
+  }
+
+  function clearAppStorage() {
+    [STORAGE_KEY_API, STORAGE_KEY_MODEL, STORAGE_KEY_THEME, STORAGE_KEY_HISTORY].forEach((key) => {
+      window.localStorage.removeItem(key);
+    });
+  }
+
+  function base64Encode(text) {
+    try {
+      return btoa(unescape(encodeURIComponent(text)));
+    } catch (err) {
+      console.error("base64Encode error", err);
+      return "";
+    }
+  }
+
+  function base64Decode(text) {
+    try {
+      return decodeURIComponent(escape(atob(text)));
+    } catch (err) {
+      console.error("base64Decode error", err);
+      return "";
+    }
+  }
+
+  function xorEncrypt(text, password) {
+    if (!password) return base64Encode(text);
+    const cipher = text
+      .split("")
+      .map((char, idx) => String.fromCharCode(char.charCodeAt(0) ^ password.charCodeAt(idx % password.length)))
+      .join("");
+    return base64Encode(cipher);
+  }
+
+  function xorDecrypt(cipher, password) {
+    if (!password) return base64Decode(cipher);
+    const decoded = base64Decode(cipher);
+    return decoded
+      .split("")
+      .map((char, idx) => String.fromCharCode(char.charCodeAt(0) ^ password.charCodeAt(idx % password.length)))
+      .join("");
+  }
+
+  function deriveHistoryTitle(content) {
+    if (!content) return "Untitled article";
+    const firstNonEmpty = content
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .find((line) => line);
+    if (!firstNonEmpty) return "Untitled article";
+    return firstNonEmpty.replace(/^#+\s*/, "").slice(0, 140) || "Untitled article";
+  }
+
+  function loadHistoryFromStorage() {
+    if (isAnonymous) return [];
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY_HISTORY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      console.error("loadHistoryFromStorage error", err);
+      return [];
+    }
+  }
+
+  function persistHistory() {
+    if (isAnonymous) return;
+    setItemGuarded(STORAGE_KEY_HISTORY, JSON.stringify(historyCache));
+  }
+
+  function renderHistory(filterText = "") {
+    if (!historyList) return;
+    const needle = filterText.trim().toLowerCase();
+    const filtered = historyCache.filter((entry) => {
+      if (!needle) return true;
+      return (
+        entry.title.toLowerCase().includes(needle) ||
+        (entry.keyword && entry.keyword.toLowerCase().includes(needle)) ||
+        (entry.content && entry.content.toLowerCase().includes(needle))
+      );
+    });
+
+    historyList.innerHTML = "";
+
+    if (!filtered.length) {
+      const empty = document.createElement("p");
+      empty.className = "field-help";
+      empty.textContent = "No matching articles in history.";
+      historyList.appendChild(empty);
+      return;
+    }
+
+    filtered.forEach((entry) => {
+      const item = document.createElement("div");
+      item.className = "history-item";
+      item.dataset.id = entry.id;
+
+      const title = document.createElement("p");
+      title.className = "history-item-title";
+      title.textContent = entry.title;
+
+      const meta = document.createElement("p");
+      meta.className = "history-item-meta";
+      const date = new Date(entry.createdAt);
+      meta.textContent = `${date.toLocaleString()}${entry.keyword ? ` • ${entry.keyword}` : ""}`;
+
+      item.append(title, meta);
+      historyList.appendChild(item);
+    });
+  }
+
+  function addHistoryEntry({ content, keyword }) {
+    const entry = {
+      id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+      title: deriveHistoryTitle(content),
+      keyword: keyword || "",
+      content,
+      createdAt: new Date().toISOString()
+    };
+
+    historyCache = [entry, ...historyCache].slice(0, MAX_HISTORY_ITEMS);
+    persistHistory();
+    renderHistory(historySearch ? historySearch.value : "");
+  }
 
   /* ---------- Menu toggle ---------- */
 
@@ -73,17 +226,50 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* ---------- Init from localStorage ---------- */
 
-  const storedKey = window.localStorage.getItem(STORAGE_KEY_API);
-  if (storedKey) {
-    apiKeyInput.value = storedKey;
-    if (rememberKeyCheckbox) {
-      rememberKeyCheckbox.checked = true;
+  function hydrateApiKeyFromStorage() {
+    if (!apiKeyInput || isAnonymous) return;
+    const raw = window.localStorage.getItem(STORAGE_KEY_API);
+    if (!raw) {
+      if (onboarding) {
+        onboarding.classList.remove("hidden");
+      }
+      return;
     }
-    fetchAndPopulateModels(storedKey);
-  } else if (onboarding) {
-    // Onboarding: pas de clé connue → montrer l’overlay
-    onboarding.classList.remove("hidden");
+
+    try {
+      const payload = JSON.parse(raw);
+      encryptedKeyPayload = payload;
+      if (rememberKeyCheckbox) {
+        rememberKeyCheckbox.checked = true;
+      }
+
+      if (payload.method === "base64") {
+        const key = base64Decode(payload.cipher);
+        apiKeyInput.value = key;
+        fetchAndPopulateModels(key);
+        return;
+      }
+
+      if (payload.method === "xor") {
+        const password = masterPasswordInput ? masterPasswordInput.value : "";
+        if (password) {
+          const key = xorDecrypt(payload.cipher, password);
+          apiKeyInput.value = key;
+          fetchAndPopulateModels(key);
+        } else if (statusEl) {
+          statusEl.textContent = "Enter your master password to unlock the API key.";
+          statusEl.classList.add("error");
+        }
+      }
+    } catch (err) {
+      console.error("hydrateApiKeyFromStorage error", err);
+      window.localStorage.removeItem(STORAGE_KEY_API);
+    }
   }
+
+  historyCache = loadHistoryFromStorage();
+  renderHistory();
+  hydrateApiKeyFromStorage();
 
   /* ---------- Theme toggle ---------- */
 
@@ -98,22 +284,23 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function resolveTheme() {
-    const stored = window.localStorage.getItem(STORAGE_KEY_THEME);
-    if (stored === "light" || stored === "dark") return stored;
+    if (!isAnonymous) {
+      const stored = window.localStorage.getItem(STORAGE_KEY_THEME);
+      if (stored === "light" || stored === "dark") return stored;
+    }
     return prefersDark.matches ? "dark" : "light";
   }
 
   function persistTheme(theme) {
-    window.localStorage.setItem(STORAGE_KEY_THEME, theme);
+    setItemGuarded(STORAGE_KEY_THEME, theme);
   }
 
   applyTheme(resolveTheme());
 
   prefersDark.addEventListener("change", () => {
+    if (isAnonymous) return;
     const stored = window.localStorage.getItem(STORAGE_KEY_THEME);
-    if (!stored) {
-      applyTheme(resolveTheme());
-    }
+    if (!stored) applyTheme(resolveTheme());
   });
 
   if (themeToggle) {
@@ -124,15 +311,35 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  const storedModel = window.localStorage.getItem(STORAGE_KEY_MODEL);
+  const storedModel = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_MODEL) : null;
   if (storedModel) {
     modelSelect.value = storedModel;
   }
 
   if (modelSelect) {
     modelSelect.addEventListener("change", () => {
-      window.localStorage.setItem(STORAGE_KEY_MODEL, modelSelect.value);
+      setItemGuarded(STORAGE_KEY_MODEL, modelSelect.value);
     });
+  }
+
+  function persistApiKey(key) {
+    if (isAnonymous) {
+      removeItem(STORAGE_KEY_API);
+      return;
+    }
+
+    if (!rememberKeyCheckbox || !rememberKeyCheckbox.checked) {
+      removeItem(STORAGE_KEY_API);
+      return;
+    }
+
+    const password = masterPasswordInput ? masterPasswordInput.value.trim() : "";
+    const payload = password
+      ? { method: "xor", cipher: xorEncrypt(key, password) }
+      : { method: "base64", cipher: base64Encode(key) };
+
+    encryptedKeyPayload = payload;
+    setItemGuarded(STORAGE_KEY_API, JSON.stringify(payload));
   }
 
   if (apiKeyInput) {
@@ -140,13 +347,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const key = apiKeyInput.value.trim();
       if (!key) {
         clearModelOptions();
+        removeItem(STORAGE_KEY_API);
         return;
       }
-      if (rememberKeyCheckbox && rememberKeyCheckbox.checked) {
-        window.localStorage.setItem(STORAGE_KEY_API, key);
-      } else {
-        window.localStorage.removeItem(STORAGE_KEY_API);
-      }
+      persistApiKey(key);
       fetchAndPopulateModels(key);
     });
   }
@@ -155,13 +359,30 @@ document.addEventListener("DOMContentLoaded", () => {
     rememberKeyCheckbox.addEventListener("change", () => {
       const key = apiKeyInput.value.trim();
       if (!key) {
-        window.localStorage.removeItem(STORAGE_KEY_API);
+        removeItem(STORAGE_KEY_API);
         return;
       }
       if (rememberKeyCheckbox.checked) {
-        window.localStorage.setItem(STORAGE_KEY_API, key);
+        persistApiKey(key);
       } else {
-        window.localStorage.removeItem(STORAGE_KEY_API);
+        removeItem(STORAGE_KEY_API);
+      }
+    });
+  }
+
+  if (masterPasswordInput) {
+    masterPasswordInput.addEventListener("input", () => {
+      if (!encryptedKeyPayload || encryptedKeyPayload.method !== "xor") return;
+      if (apiKeyInput && !apiKeyInput.value && masterPasswordInput.value) {
+        try {
+          const key = xorDecrypt(encryptedKeyPayload.cipher, masterPasswordInput.value);
+          apiKeyInput.value = key;
+          fetchAndPopulateModels(key);
+          statusEl.classList.remove("error");
+          statusEl.textContent = "API key unlocked.";
+        } catch (err) {
+          console.error("masterPassword decrypt error", err);
+        }
       }
     });
   }
@@ -239,11 +460,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (resetStorageBtn) {
     resetStorageBtn.addEventListener("click", () => {
-      window.localStorage.removeItem(STORAGE_KEY_API);
-      window.localStorage.removeItem(STORAGE_KEY_MODEL);
+      clearAppStorage();
+      historyCache = [];
+      renderHistory();
       apiKeyInput.value = "";
+      if (masterPasswordInput) {
+        masterPasswordInput.value = "";
+      }
       if (rememberKeyCheckbox) {
         rememberKeyCheckbox.checked = false;
+      }
+      if (anonymousModeCheckbox) {
+        anonymousModeCheckbox.checked = false;
+        isAnonymous = false;
       }
       statusEl.classList.remove("error", "loading");
       statusEl.textContent = "Local storage cleared.";
@@ -253,6 +482,42 @@ document.addEventListener("DOMContentLoaded", () => {
       if (onboarding) {
         onboarding.classList.remove("hidden");
       }
+    });
+  }
+
+  /* ---------- Anonymous mode ---------- */
+
+  function applyAnonymousMode(enabled) {
+    isAnonymous = enabled;
+
+    if (rememberKeyCheckbox) {
+      rememberKeyCheckbox.checked = false;
+      rememberKeyCheckbox.disabled = enabled;
+    }
+    if (masterPasswordInput) {
+      masterPasswordInput.value = "";
+      masterPasswordInput.disabled = enabled;
+    }
+
+    if (enabled) {
+      clearAppStorage();
+      historyCache = [];
+      renderHistory();
+      if (apiKeyInput) apiKeyInput.value = "";
+      clearModelOptions();
+      statusEl.textContent = "Anonymous mode enabled. Nothing will be saved.";
+      statusEl.classList.remove("error", "loading");
+    } else {
+      historyCache = loadHistoryFromStorage();
+      renderHistory();
+      hydrateApiKeyFromStorage();
+      applyTheme(resolveTheme());
+    }
+  }
+
+  if (anonymousModeCheckbox) {
+    anonymousModeCheckbox.addEventListener("change", () => {
+      applyAnonymousMode(anonymousModeCheckbox.checked);
     });
   }
 
@@ -405,11 +670,11 @@ document.addEventListener("DOMContentLoaded", () => {
       option.textContent = "No models available";
       modelSelect.appendChild(option);
       modelSelect.disabled = true;
-      window.localStorage.removeItem(STORAGE_KEY_MODEL);
+      removeItem(STORAGE_KEY_MODEL);
       return;
     }
 
-    const storedModel = window.localStorage.getItem(STORAGE_KEY_MODEL);
+    const storedModel = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_MODEL) : null;
     const sortedModels = models
       .filter((m) => m?.id)
       .sort((a, b) => a.id.localeCompare(b.id));
@@ -428,7 +693,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!modelSelect.value && sortedModels[0]) {
       modelSelect.value = sortedModels[0].id;
-      window.localStorage.setItem(STORAGE_KEY_MODEL, sortedModels[0].id);
+      setItemGuarded(STORAGE_KEY_MODEL, sortedModels[0].id);
     }
 
     modelSelect.disabled = false;
@@ -442,7 +707,7 @@ document.addEventListener("DOMContentLoaded", () => {
     placeholder.textContent = "Enter your API key to load models";
     modelSelect.appendChild(placeholder);
     modelSelect.disabled = true;
-    window.localStorage.removeItem(STORAGE_KEY_MODEL);
+    removeItem(STORAGE_KEY_MODEL);
   }
 
   /* ---------- Copy Markdown ---------- */
@@ -518,6 +783,161 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.classList.remove("error", "loading");
       updateMetrics();
       renderPreview("");
+    });
+  }
+
+  /* ---------- History overlay ---------- */
+
+  function openHistoryOverlay() {
+    if (!historyOverlay) return;
+    historyOverlay.classList.add("open");
+    historyOverlay.setAttribute("aria-hidden", "false");
+    renderHistory(historySearch ? historySearch.value : "");
+    if (historySearch) {
+      historySearch.focus();
+    }
+  }
+
+  function closeHistoryOverlay() {
+    if (!historyOverlay) return;
+    historyOverlay.classList.remove("open");
+    historyOverlay.setAttribute("aria-hidden", "true");
+  }
+
+  if (openHistoryBtn) {
+    openHistoryBtn.addEventListener("click", openHistoryOverlay);
+  }
+
+  if (closeHistoryBtn) {
+    closeHistoryBtn.addEventListener("click", closeHistoryOverlay);
+  }
+
+  if (historyOverlay) {
+    historyOverlay.addEventListener("click", (event) => {
+      if (event.target === historyOverlay) {
+        closeHistoryOverlay();
+      }
+    });
+  }
+
+  if (historySearch) {
+    historySearch.addEventListener("input", () => {
+      renderHistory(historySearch.value);
+    });
+  }
+
+  if (historyList) {
+    historyList.addEventListener("click", (event) => {
+      const item = event.target.closest(".history-item");
+      if (!item) return;
+      const entry = historyCache.find((h) => h.id === item.dataset.id);
+      if (!entry) return;
+      outputArea.value = entry.content || "";
+      updateMetrics();
+      renderPreview(entry.content || "");
+      statusEl.textContent = `Loaded “${entry.title}” from history.`;
+      statusEl.classList.remove("error", "loading");
+      closeHistoryOverlay();
+    });
+  }
+
+  /* ---------- Config import/export ---------- */
+
+  function buildConfigSnapshot() {
+    return {
+      version: "0.5.0",
+      preferences: {
+        theme: resolveTheme(),
+        model: modelSelect ? modelSelect.value : "",
+        language: languageSelect ? languageSelect.value : "",
+        tone: toneSelect ? toneSelect.value : "",
+        length: lengthSelect ? lengthSelect.value : "",
+        extra: extraInput ? extraInput.value : "",
+        preset: presetSelect ? presetSelect.value : "",
+        promptMode: promptModeSelect ? promptModeSelect.value : "standard",
+        toc: tocCheckbox ? tocCheckbox.checked : false,
+        anonymousMode: !!(anonymousModeCheckbox && anonymousModeCheckbox.checked)
+      },
+      history: historyCache
+    };
+  }
+
+  function applyImportedConfig(config) {
+    if (!config || typeof config !== "object") return;
+    const prefs = config.preferences || {};
+
+    if (typeof prefs.anonymousMode === "boolean" && anonymousModeCheckbox) {
+      anonymousModeCheckbox.checked = prefs.anonymousMode;
+      applyAnonymousMode(prefs.anonymousMode);
+    }
+
+    if (languageSelect && prefs.language) languageSelect.value = prefs.language;
+    if (toneSelect && prefs.tone) toneSelect.value = prefs.tone;
+    if (lengthSelect && prefs.length) lengthSelect.value = prefs.length;
+    if (extraInput && typeof prefs.extra === "string") extraInput.value = prefs.extra;
+    if (presetSelect && prefs.preset !== undefined) presetSelect.value = prefs.preset;
+    if (promptModeSelect && prefs.promptMode) promptModeSelect.value = prefs.promptMode;
+    if (tocCheckbox && typeof prefs.toc === "boolean") tocCheckbox.checked = prefs.toc;
+
+    if (prefs.theme) {
+      applyTheme(prefs.theme);
+      persistTheme(prefs.theme);
+    }
+
+    if (modelSelect && prefs.model) {
+      modelSelect.value = prefs.model;
+    }
+
+    if (Array.isArray(config.history)) {
+      historyCache = config.history.slice(0, MAX_HISTORY_ITEMS);
+      persistHistory();
+      renderHistory(historySearch ? historySearch.value : "");
+    }
+
+    statusEl.textContent = "Configuration imported.";
+    statusEl.classList.remove("error", "loading");
+  }
+
+  if (exportConfigBtn) {
+    exportConfigBtn.addEventListener("click", () => {
+      try {
+        const snapshot = buildConfigSnapshot();
+        const blob = new Blob([JSON.stringify(snapshot, null, 2)], {
+          type: "application/json"
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "openseo-config.json";
+        link.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("export config error", err);
+        statusEl.textContent = "Could not export configuration.";
+        statusEl.classList.add("error");
+      }
+    });
+  }
+
+  if (importConfigBtn && importConfigInput) {
+    importConfigBtn.addEventListener("click", () => {
+      importConfigInput.click();
+    });
+
+    importConfigInput.addEventListener("change", async () => {
+      const file = importConfigInput.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        applyImportedConfig(parsed);
+      } catch (err) {
+        console.error("import config error", err);
+        statusEl.textContent = "Invalid configuration file.";
+        statusEl.classList.add("error");
+      } finally {
+        importConfigInput.value = "";
+      }
     });
   }
 
@@ -660,9 +1080,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       if (rememberKeyCheckbox && rememberKeyCheckbox.checked) {
-        window.localStorage.setItem(STORAGE_KEY_API, apiKey);
+        persistApiKey(apiKey);
       } else {
-        window.localStorage.removeItem(STORAGE_KEY_API);
+        removeItem(STORAGE_KEY_API);
       }
 
       const userPrompt = buildUserPrompt({
@@ -747,6 +1167,7 @@ document.addEventListener("DOMContentLoaded", () => {
         outputArea.value = content;
         updateMetrics();
         renderPreview(content);
+        addHistoryEntry({ content, keyword });
         statusEl.textContent = "Article generated. You can now copy the Markdown.";
         statusEl.classList.remove("loading");
       } catch (error) {

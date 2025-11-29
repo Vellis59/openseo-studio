@@ -5,11 +5,11 @@ OpenSEO Studio is a **fully client-side, static SEO writing tool** powered by AI
 No backend. No database. Bring Your Own API Key (BYOK).  
 Your API key stays in your browser — you keep full control.
 
-This repository contains **OpenSEO Studio v0.4.0**, including new split-screen editing, light/dark theme controls, offline-ready PWA support, and refreshed mobile UX.
+This repository contains **OpenSEO Studio v0.5.0**, including split-screen editing, light/dark theme controls, offline-ready PWA support, refreshed mobile UX, and new client-side persistence & security controls.
 
 ---
 
-## Features (v0.4.0)
+## Features (v0.5.0)
 
 ### 🧩 Core Functionality
 - 100% client-side, static HTML/CSS/JS
@@ -25,18 +25,20 @@ This repository contains **OpenSEO Studio v0.4.0**, including new split-screen e
 - `google/gemini-2.0-flash`
 - `deepseek/deepseek-chat`
 
-### ✨ New in v0.4.0
-- **Light/Dark Theme Toggle**
-  - Follows the system preference by default and stores the user’s choice in `localStorage`.
-- **Split-Screen Editor & Live Preview**
-  - Markdown editor alongside real-time HTML preview with responsive stacking on mobile.
-  - Word and character counters update live while you type.
-- **PWA & Offline Readiness**
-  - Added `manifest.json`, icons, and a service worker that caches core assets for offline access.
-- **Improved Mobile UX**
-  - Hamburger navigation, swipe-friendly panel switching, and touch-optimized controls.
-- **Enhanced Generation Feedback**
-  - Animated progress indicator with estimated remaining time during AI generation.
+### ✨ New in v0.5.0
+- **Article history (local, client-side)**
+  - Automatically keeps the 20 most recent articles with title, keyword, and timestamp.
+  - Search bar and overlay to browse, then reload a previous article back into the editor.
+- **Safer API key handling**
+  - Encrypts the OpenRouter API key with an optional master password (fallback to Base64 if none).
+  - "Anonymous mode" toggle to run the app without saving anything to `localStorage`.
+- **Configuration import/export**
+  - Export prompts, preferences, and history as a JSON file (API key excluded).
+  - Import the JSON to restore your setup instantly.
+- **Existing UX improvements retained**
+  - Light/dark theme toggle with stored preference.
+  - Split editor/preview layout with live counters.
+  - PWA/offline cache and mobile-friendly gestures.
 
 ---
 

@@ -4,6 +4,7 @@ const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 document.addEventListener("DOMContentLoaded", () => {
   const menuToggle = document.getElementById("menuToggle");
   const menuPanel = document.getElementById("menuPanel");
+  const themeToggle = document.getElementById("themeToggle");
 
   const apiKeyInput = document.getElementById("apiKey");
   const rememberKeyCheckbox = document.getElementById("rememberKey");
@@ -27,11 +28,23 @@ document.addEventListener("DOMContentLoaded", () => {
   const promptModeSelect = document.getElementById("promptMode");
   const tocCheckbox = document.getElementById("tocCheckbox");
 
+  const previewEl = document.getElementById("preview");
+  const wordCountEl = document.getElementById("wordCount");
+  const charCountEl = document.getElementById("charCount");
+  const splitLayout = document.getElementById("splitLayout");
+  const viewEditorBtn = document.getElementById("viewEditorBtn");
+  const viewPreviewBtn = document.getElementById("viewPreviewBtn");
+  const progressBar = document.getElementById("progressBar");
+  const progressLabel = document.getElementById("progressLabel");
+  const etaLabel = document.getElementById("etaLabel");
+  const progressShell = document.querySelector(".progress-shell");
+
   const onboarding = document.getElementById("onboarding");
   const onboardingClose = document.getElementById("onboardingClose");
 
   const STORAGE_KEY_API = "openseo_openrouter_key";
   const STORAGE_KEY_MODEL = "openseo_default_model";
+  const STORAGE_KEY_THEME = "openseo_color_theme";
 
   /* ---------- Menu toggle ---------- */
 
@@ -70,6 +83,45 @@ document.addEventListener("DOMContentLoaded", () => {
   } else if (onboarding) {
     // Onboarding: pas de clé connue → montrer l’overlay
     onboarding.classList.remove("hidden");
+  }
+
+  /* ---------- Theme toggle ---------- */
+
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    if (themeToggle) {
+      themeToggle.textContent = theme === "light" ? "☀️" : "🌙";
+      themeToggle.setAttribute("aria-label", `Switch to ${theme === "light" ? "dark" : "light"} theme`);
+    }
+  }
+
+  function resolveTheme() {
+    const stored = window.localStorage.getItem(STORAGE_KEY_THEME);
+    if (stored === "light" || stored === "dark") return stored;
+    return prefersDark.matches ? "dark" : "light";
+  }
+
+  function persistTheme(theme) {
+    window.localStorage.setItem(STORAGE_KEY_THEME, theme);
+  }
+
+  applyTheme(resolveTheme());
+
+  prefersDark.addEventListener("change", () => {
+    const stored = window.localStorage.getItem(STORAGE_KEY_THEME);
+    if (!stored) {
+      applyTheme(resolveTheme());
+    }
+  });
+
+  if (themeToggle) {
+    themeToggle.addEventListener("click", () => {
+      const nextTheme = resolveTheme() === "light" ? "dark" : "light";
+      applyTheme(nextTheme);
+      persistTheme(nextTheme);
+    });
   }
 
   const storedModel = window.localStorage.getItem(STORAGE_KEY_MODEL);
@@ -201,6 +253,97 @@ document.addEventListener("DOMContentLoaded", () => {
       if (onboarding) {
         onboarding.classList.remove("hidden");
       }
+    });
+  }
+
+  /* ---------- Editor & preview sync ---------- */
+
+  function updateMetrics() {
+    if (!outputArea) return;
+    const text = outputArea.value;
+    const words = text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
+    const chars = text.length;
+    if (wordCountEl) {
+      wordCountEl.textContent = `${words} ${words === 1 ? "word" : "words"}`;
+    }
+    if (charCountEl) {
+      charCountEl.textContent = `${chars} chars`;
+    }
+  }
+
+  function renderPreview(text) {
+    if (!previewEl) return;
+    if (!text || !text.trim()) {
+      previewEl.innerHTML = '<p class="preview-placeholder">Start typing or generate content to see the preview.</p>';
+      return;
+    }
+
+    try {
+      if (window.marked && typeof window.marked.parse === "function") {
+        previewEl.innerHTML = window.marked.parse(text);
+      } else {
+        previewEl.textContent = text;
+      }
+    } catch (err) {
+      console.error("renderPreview error", err);
+      previewEl.textContent = text;
+    }
+  }
+
+  if (outputArea) {
+    outputArea.addEventListener("input", () => {
+      updateMetrics();
+      renderPreview(outputArea.value);
+    });
+    updateMetrics();
+    renderPreview(outputArea.value);
+  }
+
+  /* ---------- Mobile view toggles & gestures ---------- */
+
+  if (splitLayout) {
+    splitLayout.dataset.view = "editor";
+  }
+
+  function setView(view) {
+    if (!splitLayout) return;
+    splitLayout.dataset.view = view;
+    if (viewEditorBtn && viewPreviewBtn) {
+      viewEditorBtn.classList.toggle("active", view === "editor");
+      viewPreviewBtn.classList.toggle("active", view === "preview");
+    }
+  }
+
+  if (viewEditorBtn && viewPreviewBtn) {
+    viewEditorBtn.addEventListener("click", () => setView("editor"));
+    viewPreviewBtn.addEventListener("click", () => setView("preview"));
+  }
+
+  let touchStartX = null;
+  let touchStartY = null;
+
+  if (splitLayout) {
+    splitLayout.addEventListener("touchstart", (evt) => {
+      const touch = evt.changedTouches[0];
+      touchStartX = touch.screenX;
+      touchStartY = touch.screenY;
+    });
+
+    splitLayout.addEventListener("touchend", (evt) => {
+      const touch = evt.changedTouches[0];
+      if (touchStartX === null || touchStartY === null) return;
+
+      const deltaX = touch.screenX - touchStartX;
+      const deltaY = touch.screenY - touchStartY;
+      const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 40;
+
+      if (window.innerWidth <= 900 && isHorizontal) {
+        const nextView = deltaX < 0 ? "preview" : "editor";
+        setView(nextView);
+      }
+
+      touchStartX = null;
+      touchStartY = null;
     });
   }
 
@@ -373,7 +516,102 @@ document.addEventListener("DOMContentLoaded", () => {
       outputArea.value = "";
       statusEl.textContent = "";
       statusEl.classList.remove("error", "loading");
+      updateMetrics();
+      renderPreview("");
     });
+  }
+
+  /* ---------- Progress & ETA ---------- */
+
+  const ESTIMATED_SECONDS = [
+    { match: "short", seconds: 16 },
+    { match: "standard", seconds: 24 },
+    { match: "long", seconds: 32 },
+    { match: "ultra", seconds: 42 }
+  ];
+
+  let progressInterval = null;
+  let progressStart = null;
+
+  function estimateDuration(lengthLabel) {
+    const lower = (lengthLabel || "").toLowerCase();
+    const found = ESTIMATED_SECONDS.find((item) => lower.includes(item.match));
+    return found ? found.seconds : 22;
+  }
+
+  function formatSeconds(value) {
+    if (value <= 0) return "0s";
+    if (value < 60) return `${Math.ceil(value)}s`;
+    const minutes = Math.floor(value / 60);
+    const seconds = Math.ceil(value % 60);
+    return `${minutes}m ${seconds}s`;
+  }
+
+  function startProgress(lengthLabel) {
+    const estimate = estimateDuration(lengthLabel);
+    progressStart = performance.now();
+
+    if (progressShell) {
+      progressShell.setAttribute("aria-hidden", "false");
+    }
+    if (progressBar) {
+      progressBar.style.width = "8%";
+    }
+    if (progressLabel) {
+      progressLabel.textContent = "Contacting OpenRouter...";
+    }
+    if (etaLabel) {
+      etaLabel.textContent = `~${formatSeconds(estimate)}`;
+    }
+
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
+
+    progressInterval = window.setInterval(() => {
+      const elapsed = (performance.now() - progressStart) / 1000;
+      const remaining = Math.max(0, estimate - elapsed);
+      const percent = Math.min(92, Math.max(12, (elapsed / estimate) * 100));
+
+      if (progressBar) {
+        progressBar.style.width = `${percent}%`;
+      }
+      if (progressLabel) {
+        progressLabel.textContent = remaining > 0
+          ? "Generating with your model..."
+          : "Finishing up...";
+      }
+      if (etaLabel) {
+        etaLabel.textContent = remaining > 0 ? `~${formatSeconds(remaining)}` : "almost done";
+      }
+    }, 400);
+
+    return (success = true) => {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      if (progressBar) {
+        progressBar.style.width = "100%";
+      }
+      if (progressLabel) {
+        progressLabel.textContent = success ? "Done" : "Stopped";
+      }
+      if (etaLabel) {
+        etaLabel.textContent = "0s";
+      }
+
+      window.setTimeout(() => {
+        if (progressBar) {
+          progressBar.style.width = "0";
+        }
+        if (progressLabel) {
+          progressLabel.textContent = "Ready";
+        }
+        if (etaLabel) {
+          etaLabel.textContent = "—";
+        }
+      }, 900);
+    };
   }
 
   /* ---------- Generate article ---------- */
@@ -454,6 +692,7 @@ document.addEventListener("DOMContentLoaded", () => {
         temperature: 0.7
       };
 
+      let endProgress;
       try {
         generateBtn.disabled = true;
         generateBtn.textContent = "Generating...";
@@ -465,6 +704,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         statusEl.classList.add("loading");
         statusEl.classList.remove("error");
+
+        endProgress = startProgress(length);
+        statusEl.textContent = `${statusEl.textContent} ETA ${etaLabel ? etaLabel.textContent : "~"}`;
 
         const response = await fetch(OPENROUTER_URL, {
           method: "POST",
@@ -503,6 +745,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         outputArea.value = content;
+        updateMetrics();
+        renderPreview(content);
         statusEl.textContent = "Article generated. You can now copy the Markdown.";
         statusEl.classList.remove("loading");
       } catch (error) {
@@ -511,10 +755,21 @@ document.addEventListener("DOMContentLoaded", () => {
         statusEl.classList.remove("loading");
         statusEl.classList.add("error");
       } finally {
+        if (endProgress) {
+          endProgress(!statusEl.classList.contains("error"));
+        }
         generateBtn.disabled = false;
         generateBtn.textContent = "Generate article";
       }
     });
+  }
+
+  /* ---------- Service worker ---------- */
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker
+      .register("/service-worker.js")
+      .catch((err) => console.error("Service worker registration failed", err));
   }
 });
 

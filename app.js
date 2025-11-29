@@ -1,14 +1,8 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
-const OPENROUTER_IMAGES_URL = "https://openrouter.ai/api/v1/images";
 
 const MODEL_PRICING = {
-  default: { prompt: 0.003, completion: 0.006 },
-  "black-forest-labs/flux.2-pro": { image: 0.06 },
-  "google/gemini-3-pro-image-preview": { image: 0 },
-  "openai/gpt-5-image-mini": { image: 0 },
-  "google/gemini-2.5-flash-image": { image: 0 },
-  "google/gemini-2.5-flash-image-preview": { image: 0 }
+  default: { prompt: 0.003, completion: 0.006 }
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -22,9 +16,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const anonymousModeCheckbox = document.getElementById("anonymousMode");
   const modelSelect = document.getElementById("modelSelect");
   const resetStorageBtn = document.getElementById("resetStorageBtn");
-
-  const imageModelSelect = document.getElementById("imageModelSelect");
-  const generateCoverCheckbox = document.getElementById("generateCoverCheckbox");
 
   const seoForm = document.getElementById("seoForm");
   const keywordInput = document.getElementById("keyword");
@@ -74,11 +65,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const regenSelectionBtn = document.getElementById("regenSelectionBtn");
   const toneSelectionBtn = document.getElementById("toneSelectionBtn");
 
-  const imagePanel = document.getElementById("imagePanel");
-  const imagePreview = document.getElementById("imagePreview");
-  const downloadImageBtn = document.getElementById("downloadImageBtn");
-  const altTextNote = document.getElementById("altTextNote");
-
   const openHistoryBtn = document.getElementById("openHistoryBtn");
   const historyOverlay = document.getElementById("historyOverlay");
   const closeHistoryBtn = document.getElementById("closeHistoryBtn");
@@ -103,7 +89,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let isAnonymous = false;
   let encryptedKeyPayload = null;
   let historyCache = [];
-  let currentImageDataUrl = null;
 
   function setItemGuarded(key, value) {
     if (isAnonymous) return;
@@ -623,12 +608,10 @@ document.addEventListener("DOMContentLoaded", () => {
     return MODEL_PRICING[model] || MODEL_PRICING.default;
   }
 
-  function recordCost(model, tokens, type = "text") {
+  function recordCost(model, tokens) {
     const pricing = priceForModel(model);
     let cost = 0;
-    if (type === "image" && pricing.image) {
-      cost = pricing.image;
-    } else if (pricing.prompt) {
+    if (pricing.prompt) {
       cost = (tokens / 1000) * (pricing.prompt + pricing.completion);
     }
 
@@ -987,8 +970,6 @@ document.addEventListener("DOMContentLoaded", () => {
       preferences: {
         theme: resolveTheme(),
         model: modelSelect ? modelSelect.value : "",
-        imageModel: imageModelSelect ? imageModelSelect.value : "",
-        generateCover: generateCoverCheckbox ? generateCoverCheckbox.checked : false,
         language: languageSelect ? languageSelect.value : "",
         tone: toneSelect ? toneSelect.value : "",
         length: lengthSelect ? lengthSelect.value : "",
@@ -1023,10 +1004,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (presetSelect && prefs.preset !== undefined) presetSelect.value = prefs.preset;
     if (promptModeSelect && prefs.promptMode) promptModeSelect.value = prefs.promptMode;
     if (tocCheckbox && typeof prefs.toc === "boolean") tocCheckbox.checked = prefs.toc;
-    if (imageModelSelect && prefs.imageModel !== undefined) imageModelSelect.value = prefs.imageModel;
-    if (generateCoverCheckbox && typeof prefs.generateCover === "boolean") {
-      generateCoverCheckbox.checked = prefs.generateCover;
-    }
     if (expertToggle && typeof prefs.expertMode === "boolean") {
       expertToggle.checked = prefs.expertMode;
       setExpertMode(prefs.expertMode);
@@ -1455,10 +1432,6 @@ document.addEventListener("DOMContentLoaded", () => {
         recordCost(model, estimateTokens());
         updateEstimates();
 
-        const h1 = extractH1(content) || (planEditor ? planEditor.value.split("\n")[0] : "");
-        if (generateCoverCheckbox && generateCoverCheckbox.checked && h1) {
-          await generateCoverImage(h1, apiKey);
-        }
       } catch (error) {
         console.error(error);
         statusEl.textContent = `Error: ${error.message}`;
@@ -1551,114 +1524,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (toneSelectionBtn) {
     toneSelectionBtn.addEventListener("click", () => regenerateSelection({ changeTone: true }));
-  }
-
-  function extractH1(markdown) {
-    if (!markdown) return "";
-    const line = markdown
-      .split(/\n/)
-      .map((l) => l.trim())
-      .find((l) => l.startsWith("#"));
-    return line ? line.replace(/^#+\s*/, "").trim() : "";
-  }
-
-  async function generateCoverImage(h1, apiKey) {
-    if (!imageModelSelect || !generateCoverCheckbox || !generateCoverCheckbox.checked) return;
-    const model = imageModelSelect.value;
-    if (!model) return;
-
-    const prompt = `Clean, professional cover image for an article titled "${h1}". Modern, high contrast, editorial, no text overlay, photographic or illustration consistent with tech/business.`;
-    const body = {
-      model,
-      prompt,
-      size: "1024x1024"
-    };
-
-    try {
-      if (imagePreview) {
-        imagePreview.innerHTML = "<p class='field-help'>Generating cover image...</p>";
-      }
-      if (downloadImageBtn) downloadImageBtn.disabled = true;
-
-      const response = await fetch(OPENROUTER_IMAGES_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
-      });
-
-      const contentType = response.headers.get("content-type") || "";
-      const rawText = await response.text();
-
-      if (!response.ok) {
-        const snippet = rawText ? rawText.slice(0, 200) : response.statusText;
-        throw new Error(`OpenRouter error ${response.status}: ${snippet}`);
-      }
-
-      const looksHtml = contentType.includes("text/html") || rawText.trim().startsWith("<");
-      if (looksHtml) {
-        const cleanedHtml = rawText.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-        const hint = cleanedHtml.includes("Model Not Found")
-          ? "Selected image model is unavailable. Double-check the model name and that your account has access."
-          : "OpenRouter returned HTML instead of image JSON. Please retry or pick another image model.";
-        throw new Error(hint);
-      }
-
-      let data;
-      try {
-        data = JSON.parse(rawText);
-      } catch (parseErr) {
-        const cleaned = rawText
-          .replace(/<[^>]*>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim()
-          .slice(0, 200);
-        const hint = cleaned
-          ? `Body: ${cleaned}`
-          : "Verify your OpenRouter key and that the selected image model is available.";
-        throw new Error(`Unexpected response format (${contentType || "unknown"}). ${hint}`);
-      }
-
-      const imageUrl = data?.data?.[0]?.url || data?.data?.[0]?.b64_json;
-      if (!imageUrl) {
-        throw new Error("No image returned by OpenRouter.");
-      }
-
-      currentImageDataUrl = imageUrl.startsWith("http") ? imageUrl : `data:image/png;base64,${imageUrl}`;
-
-      if (imagePreview) {
-        imagePreview.innerHTML = `<img src="${currentImageDataUrl}" alt="Cover image preview">`;
-      }
-
-      const altText = `Cover image for ${h1}`;
-      if (altTextNote) {
-        altTextNote.textContent = `ALT suggestion: ${altText}`;
-      }
-
-      if (downloadImageBtn) {
-        downloadImageBtn.disabled = false;
-      }
-
-      recordCost(model, 0, "image");
-      updateEstimates();
-    } catch (err) {
-      console.error(err);
-      if (imagePreview) {
-        imagePreview.innerHTML = `<p class='field-help error'>Image generation failed: ${err.message}</p>`;
-      }
-    }
-  }
-
-  if (downloadImageBtn) {
-    downloadImageBtn.addEventListener("click", () => {
-      if (!currentImageDataUrl) return;
-      const link = document.createElement("a");
-      link.href = currentImageDataUrl;
-      link.download = "openseo-cover.png";
-      link.click();
-    });
   }
 
   /* ---------- Service worker ---------- */

@@ -764,31 +764,6 @@ body {
   flex-wrap: wrap;
 }
 
-.image-panel {
-  margin-top: 1.2rem;
-  padding: 1rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--bg-card-secondary);
-}
-
-.image-preview {
-  min-height: 160px;
-  border: 1px dashed var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 0.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
-}
-
-.image-preview img {
-  max-width: 100%;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-soft);
-}
-
 @media (max-width: 900px) {
   .split-layout {
     grid-template-columns: 1fr;

@@ -33,8 +33,9 @@ When you enter your OpenRouter API key, the app automatically fetches all models
 - **Expert Mode controls** to tweak temperature, max tokens, top-p, and frequency penalty, with token and cost estimations plus a local monthly spend tracker.
 - **3-step workflow** (plan → review → generate) with editable outlines and step indicators for section-by-section generation.
 - **Selective regeneration tools** to rewrite or retone highlighted passages without rebuilding the full article.
-- **Image generation pipeline** integrated with OpenRouter image models (Flux 2 Pro, Gemini 3 Pro image preview, GPT-5 image mini, Gemini 2.5 Flash image and preview) and optional cover image + ALT text previews.
 - **Dynamic costs** and outline-aware prompts designed for partial/section-by-section generation.
+
+> Note: The previous cover image generator is temporarily disabled while we revisit the feature.
 
 ---
 

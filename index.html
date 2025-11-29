@@ -76,25 +76,9 @@
         <option value="">Enter your API key to load models</option>
       </select>
 
-      <label class="field-label" for="imageModelSelect">
-        Image generation model (optional)
-      </label>
-      <select id="imageModelSelect" class="field-input">
-        <option value="">None</option>
-        <option value="black-forest-labs/flux.2-pro">black-forest-labs/flux.2-pro</option>
-        <option value="google/gemini-3-pro-image-preview">google/gemini-3-pro-image-preview</option>
-        <option value="openai/gpt-5-image-mini">openai/gpt-5-image-mini</option>
-        <option value="google/gemini-2.5-flash-image">google/gemini-2.5-flash-image</option>
-        <option value="google/gemini-2.5-flash-image-preview">google/gemini-2.5-flash-image-preview</option>
-      </select>
-      <label class="checkbox-row">
-        <input type="checkbox" id="generateCoverCheckbox">
-        <span>Generate cover image</span>
-      </label>
-
       <label class="field-label" for="presetSelect">
-  Preset
-</label>
+        Preset
+      </label>
 <select id="presetSelect" class="field-input">
   <option value="">None</option>
   <option value="guide">Guide</option>
@@ -341,19 +325,6 @@
           </div>
         </div>
 
-        <div class="image-panel" id="imagePanel" aria-live="polite">
-          <div class="split-header">
-            <div>
-              <p class="panel-title">Generated cover image</p>
-              <p class="panel-sub">Based on your validated H1. Not inserted automatically.</p>
-            </div>
-            <button type="button" id="downloadImageBtn" class="btn-secondary" disabled>Download image</button>
-          </div>
-          <div class="image-preview" id="imagePreview">
-            <p class="field-help">Enable “Generate cover image” in settings to get a preview.</p>
-          </div>
-          <p class="small-note" id="altTextNote"></p>
-        </div>
       </form>
     </section>
 

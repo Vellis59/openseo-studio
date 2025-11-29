@@ -5,17 +5,17 @@ OpenSEO Studio is a **fully client-side, static SEO writing tool** powered by AI
 No backend. No database. Bring Your Own API Key (BYOK).  
 Your API key stays in your browser — you keep full control.
 
-This repository contains **OpenSEO Studio v0.3**, including AI presets, prompt modes, onboarding, and a cleaner UX.
+This repository contains **OpenSEO Studio v0.4.0**, including new split-screen editing, light/dark theme controls, offline-ready PWA support, and refreshed mobile UX.
 
 ---
 
-## Features (v0.3)
+## Features (v0.4.0)
 
 ### 🧩 Core Functionality
-- 100% client-side, static HTML/CSS/JS  
-- SEO-optimized long-form article generation  
-- Markdown-only output (no HTML, no front matter, no emojis)  
-- Supports English and French content generation  
+- 100% client-side, static HTML/CSS/JS
+- SEO-optimized long-form article generation
+- Markdown-only output (no HTML, no front matter, no emojis)
+- Supports English and French content generation
 
 ### 🔧 AI Model Selection (via OpenRouter)
 - `openai/gpt-4.1-mini`
@@ -25,19 +25,18 @@ This repository contains **OpenSEO Studio v0.3**, including AI presets, prompt m
 - `google/gemini-2.0-flash`
 - `deepseek/deepseek-chat`
 
-### ✨ New in v0.3
-- **6 AI presets**  
-  (Guide, Long Article, Tutorial, Comparison, Listicle, News)
-- **Prompt Mode**  
-  Switch between *Standard* and *Minimal* instructions
-- **Optional Markdown TOC**  
-  Auto-injects a table of contents at the top of the article
-- **Onboarding overlay**  
-  Helps new users configure their API key
-- **Clean error messages**  
-  Improved handling of OpenRouter responses
-- **UI polish**  
-  Better padding, clearer loading state, refined buttons, improved UX
+### ✨ New in v0.4.0
+- **Light/Dark Theme Toggle**
+  - Follows the system preference by default and stores the user’s choice in `localStorage`.
+- **Split-Screen Editor & Live Preview**
+  - Markdown editor alongside real-time HTML preview with responsive stacking on mobile.
+  - Word and character counters update live while you type.
+- **PWA & Offline Readiness**
+  - Added `manifest.json`, icons, and a service worker that caches core assets for offline access.
+- **Improved Mobile UX**
+  - Hamburger navigation, swipe-friendly panel switching, and touch-optimized controls.
+- **Enhanced Generation Feedback**
+  - Animated progress indicator with estimated remaining time during AI generation.
 
 ---
 
@@ -61,17 +60,20 @@ Nothing is stored server-side.
 
 OpenSEO Studio is fully static and can run locally without installation.
 
-### Option 1 — Double-click  
+### Option 1 — Double-click
 Simply open `index.html` in any modern browser.
 
-### Option 2 — Local static server  
+### Option 2 — Local static server
 ```bash
 python -m http.server 8080
 Then visit:
 http://localhost:8080/
 
-Cloud-ready version (optional)
+Service workers and PWA install prompts require a server context (Option 2 or Cloudflare Pages) to register correctly.
 
-License
-Released under the MIT License.
-See the LICENSE file for details.
+## Cloud deployment
+
+Deploy the contents of this repository to **Cloudflare Pages** (or any static host). The included `manifest.json`, `service-worker.js`, and icons are ready for production.
+
+## License
+Released under the MIT License. See the LICENSE file for details.

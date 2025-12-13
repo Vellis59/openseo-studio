@@ -1216,7 +1216,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function buildConfigSnapshot() {
     return {
-      version: "0.7.0",
+      version: "0.8.0",
       preferences: {
         theme: resolveTheme(),
         model: modelSelect ? modelSelect.value : "",
@@ -1596,6 +1596,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const length = lengthSelect.value;
       const extra = extraInput.value.trim();
       const model = modelSelect.value;
+      const mode = promptModeSelect ? promptModeSelect.value : "standard";
 
       if (!model) {
         statusEl.textContent = "Please select a model (load them from OpenRouter first).";
@@ -1632,11 +1633,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messages: [
           {
             role: "system",
-            content:
-              "You are a senior SEO content writer. You write long-form, well-structured, " +
-              "readable blog posts that follow on-page SEO best practices. You only output Markdown " +
-              "(headings, lists, tables when useful), with no YAML front matter and no raw HTML. " +
-              "Avoid emojis and generic, overused AI-style introductions."
+            content: buildSystemPrompt()
           },
           {
             role: "user",
@@ -1659,7 +1656,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         markStep(2);
 
-        if (tocCheckbox && tocCheckbox.checked) {
+        const tocEnabled = mode === "strict-seo" || (tocCheckbox && tocCheckbox.checked);
+
+        if (tocEnabled) {
           statusEl.textContent = "TOC enabled. Contacting OpenRouter...";
         } else {
           statusEl.textContent = "Contacting OpenRouter...";
@@ -1919,39 +1918,57 @@ document.addEventListener("DOMContentLoaded", () => {
 
 /* ---------- Prompt helpers ---------- */
 
-function standardPrompt(lines) {
-  return lines;
+const PROMPT_BLOCKS = {
+  BASE_INVARIANTS: [
+    "Output strictly in Markdown (no HTML, no YAML front matter).",
+    "Use Markdown headings, lists, and tables when useful.",
+    "Do not add YAML front matter.",
+    "Avoid raw HTML.",
+    "Do not use emojis.",
+    "Avoid generic, overused AI-style introductions."
+  ],
+  ROLE_DEFINITION: [
+    "You are a senior SEO content writer.",
+    "You write long-form, well-structured, readable blog posts that follow on-page SEO best practices."
+  ],
+  STRUCTURE_CORE: [
+    "Start with a strong, useful H1 title.",
+    "Write a short and direct introduction.",
+    "Use a clear heading hierarchy (H2, H3, H4 if necessary) that reflects a solid SEO structure.",
+    "End with a conclusion that summarises the key points and suggests a concrete next step."
+  ],
+  STRUCTURE_EXTENDED: {
+    TOC:
+      "At the beginning of the article, add a Markdown table of contents with internal links to the main sections.",
+    FAQ: "Add a concise FAQ section with clear questions and brief answers relevant to the topic.",
+    CALLOUTS: "Use brief callouts (Tip:, Note:, Warning:) when they clarify key takeaways or cautions."
+  },
+  SEO_EXTRAS: [
+    "Add an SEO metadata block with a concise title tag and meta description formatted in Markdown.",
+    "Suggest relevant tags or categories when useful."
+  ],
+  WRITING_GUIDELINES: [
+    "Use short paragraphs and clear sentences.",
+    "Use bullet lists or numbered lists when useful.",
+    "Add a table in Markdown if it helps compare options, steps, tools or features.",
+    "Keep paragraphs tight and focused."
+  ]
+};
+
+function buildSystemPrompt() {
+  return [...PROMPT_BLOCKS.ROLE_DEFINITION, ...PROMPT_BLOCKS.BASE_INVARIANTS].join(" ");
 }
 
-function minimalPrompt(lines) {
-  const result = [];
-
-  // Garder le contexte de base
-  for (let i = 0; i < lines.length; i++) {
-    if (i <= 4) {
-      result.push(lines[i]);
-    }
-  }
-
-  result.push("");
-  result.push("Write clearly. No fluff. Short intro.");
-  result.push("Use H2/H3 only when really useful.");
-  result.push("Keep paragraphs tight and focused.");
-  result.push("");
-
-  // Garder la dernière ligne si c’est une contrainte additionnelle
-  const last = lines[lines.length - 1];
-  if (last && last.trim()) {
-    result.push(last);
-  }
-
-  return result;
-}
-
-/**
- * Build the user prompt for the SEO article generator.
- */
-function buildUserPrompt({ keyword, language, tone, length, extra, planText }) {
+function buildPromptBlocks({
+  keyword,
+  language,
+  tone,
+  length,
+  extra,
+  planText,
+  mode,
+  tocRequested
+}) {
   const lines = [];
 
   lines.push(
@@ -1962,50 +1979,70 @@ function buildUserPrompt({ keyword, language, tone, length, extra, planText }) {
     ""
   );
 
-  lines.push("Writing constraints:");
-  lines.push("- Output strictly in Markdown (no HTML, no YAML front matter).");
-  lines.push("- Start with a strong, useful H1 title.");
-  lines.push(
-    "- Use a clear heading hierarchy (H2, H3, H4 if necessary) that reflects a solid SEO structure."
-  );
-  lines.push(
-    "- Write a short and direct introduction, without generic or overused AI-style phrases."
-  );
-  lines.push("- Use short paragraphs and clear sentences.");
-  lines.push("- Use bullet lists or numbered lists when useful.");
-  lines.push(
-    "- Add a table in Markdown if it helps compare options, steps, tools or features."
-  );
-  lines.push(
-    "- End with a conclusion that summarises the key points and suggests a concrete next step."
-  );
-  lines.push("- Do not add YAML front matter.");
-  lines.push("- Do not use emojis.");
+  lines.push("Base rules:");
+  PROMPT_BLOCKS.BASE_INVARIANTS.forEach((rule) => lines.push(`- ${rule}`));
   lines.push("");
 
-  if (extra) {
-    lines.push(`Additional options or constraints: ${extra}`);
-  }
+  lines.push("Structure (core):");
+  PROMPT_BLOCKS.STRUCTURE_CORE.forEach((rule) => lines.push(`- ${rule}`));
+  lines.push("");
 
   if (planText) {
     lines.push("Use the following outline and generate each section sequentially:");
     lines.push(planText);
     lines.push("Expand each heading with detailed, concise paragraphs.");
+    lines.push("");
   }
 
-  const tocCheckbox = document.getElementById("tocCheckbox");
-  if (tocCheckbox && tocCheckbox.checked) {
-    lines.push(
-      "At the beginning of the article, add a Markdown table of contents with internal links to the main sections."
-    );
+  if (mode !== "minimal") {
+    lines.push("Writing guidelines:");
+    PROMPT_BLOCKS.WRITING_GUIDELINES.forEach((rule) => lines.push(`- ${rule}`));
+    lines.push("");
   }
 
+  if (mode === "standard") {
+    if (tocRequested) {
+      lines.push(PROMPT_BLOCKS.STRUCTURE_EXTENDED.TOC);
+    }
+    lines.push("If relevant to the topic, add a short FAQ section with concise answers.");
+    lines.push("");
+  }
+
+  if (mode === "strict-seo") {
+    lines.push("Extended structure:");
+    lines.push(`- ${PROMPT_BLOCKS.STRUCTURE_EXTENDED.TOC}`);
+    lines.push(`- ${PROMPT_BLOCKS.STRUCTURE_EXTENDED.CALLOUTS}`);
+    lines.push(`- ${PROMPT_BLOCKS.STRUCTURE_EXTENDED.FAQ}`);
+    lines.push("");
+
+    lines.push("SEO extras:");
+    PROMPT_BLOCKS.SEO_EXTRAS.forEach((rule) => lines.push(`- ${rule}`));
+    lines.push("");
+  }
+
+  if (extra) {
+    lines.push(`Additional options or constraints: ${extra}`);
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Build the user prompt for the SEO article generator.
+ */
+function buildUserPrompt({ keyword, language, tone, length, extra, planText }) {
   const promptModeSelect = document.getElementById("promptMode");
+  const tocCheckbox = document.getElementById("tocCheckbox");
   const mode = promptModeSelect ? promptModeSelect.value : "standard";
 
-  if (mode === "minimal") {
-    return minimalPrompt(lines).join("\n");
-  }
-
-  return standardPrompt(lines).join("\n");
+  return buildPromptBlocks({
+    keyword,
+    language,
+    tone,
+    length,
+    extra,
+    planText,
+    mode,
+    tocRequested: Boolean(tocCheckbox && tocCheckbox.checked)
+  });
 }

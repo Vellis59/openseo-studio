@@ -1,11 +1,14 @@
-const CACHE_NAME = "openseo-studio-v0.4.0";
+importScripts("/version.js");
+
+const CACHE_NAME = `openseo-studio-v${APP_VERSION}`;
 const OFFLINE_ASSETS = [
   "/",
   "/index.html",
-  "/style.css",
-  "/app.js",
+  "/version.js",
+  `/style.css?v=${APP_VERSION}`,
+  `/app.js?v=${APP_VERSION}`,
   "/manifest.json",
-  "/favicon.svg",
+  `/favicon.svg?v=${APP_VERSION}`,
   "/icons/icon-192.svg",
   "/icons/icon-512.svg",
   "https://cdn.jsdelivr.net/npm/marked/marked.min.js"

@@ -1216,7 +1216,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function buildConfigSnapshot() {
     return {
-      version: "0.7.0",
+      version: "0.8.0",
       preferences: {
         theme: resolveTheme(),
         model: modelSelect ? modelSelect.value : "",

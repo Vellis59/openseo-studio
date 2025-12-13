@@ -5,6 +5,92 @@ const MODEL_PRICING = {
   default: { prompt: 0.003, completion: 0.006 }
 };
 
+const LANGUAGES = {
+  en: {
+    label: "English",
+    promptName: "English",
+    seoNotes: "Use natural phrasing suited to search intent and readability."
+  },
+  fr: {
+    label: "French",
+    promptName: "French",
+    seoNotes: "Respect French typographic rules and natural SEO wording."
+  },
+  es: { label: "Spanish", promptName: "Spanish" },
+  de: { label: "German", promptName: "German" },
+  it: { label: "Italian", promptName: "Italian" },
+  "pt-pt": {
+    label: "Portuguese (Portugal)",
+    promptName: "European Portuguese",
+    seoNotes: "Use vocabulary and spelling for Portugal."
+  },
+  "pt-br": {
+    label: "Portuguese (Brazil)",
+    promptName: "Brazilian Portuguese",
+    seoNotes: "Use vocabulary and spelling for Brazil."
+  },
+  nl: { label: "Dutch", promptName: "Dutch" },
+  pl: { label: "Polish", promptName: "Polish" },
+  sv: { label: "Swedish", promptName: "Swedish" },
+  da: { label: "Danish", promptName: "Danish" },
+  fi: { label: "Finnish", promptName: "Finnish" },
+  no: { label: "Norwegian", promptName: "Norwegian" },
+  cs: { label: "Czech", promptName: "Czech" },
+  ro: { label: "Romanian", promptName: "Romanian" },
+  hu: { label: "Hungarian", promptName: "Hungarian" },
+  el: { label: "Greek", promptName: "Greek" },
+  tr: { label: "Turkish", promptName: "Turkish" },
+  id: { label: "Indonesian", promptName: "Indonesian" },
+  ja: { label: "Japanese", promptName: "Japanese", seoNotes: "Write naturally for Japanese readers without forcing Western phrasing." },
+  ko: { label: "Korean", promptName: "Korean" },
+  "zh-hans": {
+    label: "Simplified Chinese",
+    promptName: "Simplified Chinese",
+    seoNotes: "Use Simplified Chinese characters and natural SEO phrasing."
+  },
+  "zh-hant": {
+    label: "Traditional Chinese",
+    promptName: "Traditional Chinese",
+    seoNotes: "Use Traditional Chinese characters and natural SEO phrasing."
+  },
+  ar: { label: "Arabic", promptName: "Arabic" }
+};
+
+const NON_LATIN_LANGUAGE_CODES = new Set(["ja", "ko", "zh-hans", "zh-hant", "ar"]);
+const DEFAULT_LANGUAGE = "en";
+
+function getLanguageConfig(value) {
+  const input = value || DEFAULT_LANGUAGE;
+  if (LANGUAGES[input]) {
+    return { code: input, ...LANGUAGES[input] };
+  }
+
+  const lower = input.toLowerCase();
+  const match = Object.entries(LANGUAGES).find(([, data]) => {
+    return (
+      data.label.toLowerCase() === lower ||
+      data.promptName.toLowerCase() === lower
+    );
+  });
+
+  const code = match ? match[0] : DEFAULT_LANGUAGE;
+  return { code, ...LANGUAGES[code] };
+}
+
+function populateLanguageSelect(selectEl) {
+  if (!selectEl) return;
+  selectEl.innerHTML = "";
+
+  Object.entries(LANGUAGES).forEach(([code, data]) => {
+    const option = document.createElement("option");
+    option.value = code;
+    option.textContent = data.label;
+    selectEl.appendChild(option);
+  });
+
+  selectEl.value = DEFAULT_LANGUAGE;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const menuToggle = document.getElementById("menuToggle");
   const menuPanel = document.getElementById("menuPanel");
@@ -76,6 +162,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const regenSelectionBtn = document.getElementById("regenSelectionBtn");
   const toneSelectionBtn = document.getElementById("toneSelectionBtn");
+
+  populateLanguageSelect(languageSelect);
 
   const openHistoryBtn = document.getElementById("openHistoryBtn");
   const historyOverlay = document.getElementById("historyOverlay");
@@ -744,6 +832,14 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
+  function getSelectedLanguage() {
+    const config = getLanguageConfig(languageSelect ? languageSelect.value : DEFAULT_LANGUAGE);
+    if (languageSelect) {
+      languageSelect.value = config.code;
+    }
+    return config;
+  }
+
   function renderInsightList(element, items, emptyText) {
     if (!element) return;
     element.innerHTML = "";
@@ -803,7 +899,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateInsights() {
     const content = outputArea ? outputArea.value : "";
     const keyword = keywordInput ? keywordInput.value : "";
-    const language = languageSelect ? languageSelect.value : "English";
+    const languageConfig = getSelectedLanguage();
 
     const seo = analyzeSeo(content, keyword);
     if (seoScoreValue) seoScoreValue.textContent = Number.isFinite(seo.score) ? seo.score : "—";
@@ -813,7 +909,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderInsightList(seoChecksList, seo.checks, "Start writing to see checks.");
     renderInsightList(seoSuggestionsList, seo.suggestions, "No suggestions — looking good!");
 
-    const readability = computeReadability(content, language);
+    const readability = computeReadability(content, languageConfig.promptName);
     if (readabilityScoreEl) {
       readabilityScoreEl.textContent = Number.isFinite(readability.score) ? readability.score : "—";
     }
@@ -1247,7 +1343,10 @@ document.addEventListener("DOMContentLoaded", () => {
       applyAnonymousMode(prefs.anonymousMode);
     }
 
-    if (languageSelect && prefs.language) languageSelect.value = prefs.language;
+    if (languageSelect) {
+      const resolvedLanguage = getLanguageConfig(prefs.language).code;
+      languageSelect.value = resolvedLanguage;
+    }
     if (toneSelect && prefs.tone) toneSelect.value = prefs.tone;
     if (lengthSelect && prefs.length) lengthSelect.value = prefs.length;
     if (extraInput && typeof prefs.extra === "string") extraInput.value = prefs.extra;
@@ -1502,6 +1601,7 @@ document.addEventListener("DOMContentLoaded", () => {
     statusEl.textContent = "Generating outline...";
     statusEl.classList.add("loading");
     const length = lengthSelect.value;
+    const languageConfig = getSelectedLanguage();
 
     const body = {
       model,
@@ -1513,7 +1613,7 @@ document.addEventListener("DOMContentLoaded", () => {
         },
         {
           role: "user",
-          content: `Keyword: ${keyword}. Tone: ${toneSelect.value}. Language: ${languageSelect.value}. Length: ${length}. Outline only.`
+          content: `Keyword: ${keyword}. Tone: ${toneSelect.value}. Language: ${languageConfig.promptName}. Length: ${length}. Outline only.`
         }
       ]
     };
@@ -1591,7 +1691,7 @@ document.addEventListener("DOMContentLoaded", () => {
         await generatePlan({ silent: true });
       }
 
-      const language = languageSelect.value;
+      const languageConfig = getSelectedLanguage();
       const tone = toneSelect.value;
       const length = lengthSelect.value;
       const extra = extraInput.value.trim();
@@ -1616,7 +1716,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const userPrompt = buildUserPrompt({
         keyword,
-        language,
+        languageConfig,
         tone,
         length,
         extra,
@@ -1770,7 +1870,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const language = languageSelect ? languageSelect.value : "English";
+    const languageConfig = getSelectedLanguage();
     const articleContext = (outputArea ? outputArea.value : "").slice(0, 6000) || "(no draft content provided)";
 
     const body = {
@@ -1783,7 +1883,7 @@ document.addEventListener("DOMContentLoaded", () => {
         },
         {
           role: "user",
-          content: `Language: ${language}. Main keyword: ${keyword}.\nContext (may be partial):\n${articleContext}`
+          content: `Language: ${languageConfig.promptName}. Main keyword: ${keyword}.\nContext (may be partial):\n${articleContext}`
         }
       ],
       temperature: 0.5,
@@ -1961,7 +2061,7 @@ function buildSystemPrompt() {
 
 function buildPromptBlocks({
   keyword,
-  language,
+  languageConfig,
   tone,
   length,
   extra,
@@ -1971,13 +2071,30 @@ function buildPromptBlocks({
 }) {
   const lines = [];
 
+  const resolvedLanguage = languageConfig || getLanguageConfig();
+  const languageName = resolvedLanguage.promptName;
+
   lines.push(
-    `Write a long-form SEO-optimized blog post in ${language}.`,
+    `Write a long-form SEO-optimized blog post in ${languageName}.`,
+    `The entire article must be written exclusively in ${languageName}. Do not mix languages. Do not translate terms unless commonly used in ${languageName} SEO.`,
     `Main keyword: "${keyword}".`,
     `Tone: ${tone}.`,
     `Target length: ${length}.`,
     ""
   );
+
+  if (resolvedLanguage.seoNotes) {
+    lines.push(`Language-specific notes: ${resolvedLanguage.seoNotes}`);
+    lines.push("");
+  }
+
+  if (NON_LATIN_LANGUAGE_CODES.has(resolvedLanguage.code)) {
+    lines.push(
+      "Preserve the Markdown heading and list structure exactly while writing naturally in the target language.",
+      "Do not force Western punctuation or idioms; avoid English leftovers unless they are standard in the target language."
+    );
+    lines.push("");
+  }
 
   lines.push("Base rules:");
   PROMPT_BLOCKS.BASE_INVARIANTS.forEach((rule) => lines.push(`- ${rule}`));
@@ -2030,14 +2147,14 @@ function buildPromptBlocks({
 /**
  * Build the user prompt for the SEO article generator.
  */
-function buildUserPrompt({ keyword, language, tone, length, extra, planText }) {
+function buildUserPrompt({ keyword, languageConfig, tone, length, extra, planText }) {
   const promptModeSelect = document.getElementById("promptMode");
   const tocCheckbox = document.getElementById("tocCheckbox");
   const mode = promptModeSelect ? promptModeSelect.value : "standard";
 
   return buildPromptBlocks({
     keyword,
-    language,
+    languageConfig,
     tone,
     length,
     extra,

@@ -1873,11 +1873,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (regenSelectionBtn) {
-    regenSelectionBtn.addEventListener("click", () => regenerateSelection());
+    regenSelectionBtn.addEventListener("click", () => {
+      regenerateSelection();
+    });
   }
 
   if (toneSelectionBtn) {
-    toneSelectionBtn.addEventListener("click", () => regenerateSelection({ changeTone: true }));
+    toneSelectionBtn.addEventListener("click", () => {
+      regenerateSelection({ changeTone: true });
+    });
   }
 
   /* ---------- Service worker ---------- */

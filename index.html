@@ -158,6 +158,14 @@
           placeholder="e.g. include a table of contents, no cliché intro, no emojis..."
         >
 
+        <label class="field-label" for="modelSelect">
+          OpenRouter model
+          <span class="field-help">Requires your API key in the Parameters page.</span>
+        </label>
+        <select id="modelSelect" class="field-input" disabled>
+          <option value="">Loading models...</option>
+        </select>
+
         <div class="actions-row">
           <button type="button" id="planBtn" class="btn-secondary">Generate plan</button>
           <button type="button" id="generateBtn" class="btn-primary">

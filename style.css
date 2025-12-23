@@ -80,6 +80,12 @@ body {
   gap: 0.75rem;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .logo-circle {
   width: 32px;
   height: 32px;
@@ -777,6 +783,26 @@ body {
   padding: 0.4rem;
   display: grid;
   gap: 0.5rem;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.settings-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 1rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin: 0.75rem 0 0.25rem;
 }
 
 .history-item {

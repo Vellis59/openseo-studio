@@ -90,16 +90,7 @@ function populateLanguageSelect(selectEl) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  const menuToggle = document.getElementById("menuToggle");
-  const menuPanel = document.getElementById("menuPanel");
   const themeToggle = document.getElementById("themeToggle");
-
-  const apiKeyInput = document.getElementById("apiKey");
-  const rememberKeyCheckbox = document.getElementById("rememberKey");
-  const masterPasswordInput = document.getElementById("masterPassword");
-  const anonymousModeCheckbox = document.getElementById("anonymousMode");
-  const modelSelect = document.getElementById("modelSelect");
-  const resetStorageBtn = document.getElementById("resetStorageBtn");
 
   const seoForm = document.getElementById("seoForm");
   const keywordInput = document.getElementById("keyword");
@@ -180,8 +171,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const onboarding = document.getElementById("onboarding");
   const onboardingClose = document.getElementById("onboardingClose");
 
-  const STORAGE_KEY_API = "openseo_openrouter_key";
-  const STORAGE_KEY_MODEL = "openseo_default_model";
   const STORAGE_KEY_THEME = "openseo_color_theme";
   const STORAGE_KEY_HISTORY = "openseo_article_history";
   const STORAGE_KEY_SPEND = "openseo_monthly_spend";
@@ -199,12 +188,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function removeItem(key) {
     window.localStorage.removeItem(key);
-  }
-
-  function clearAppStorage() {
-    [STORAGE_KEY_API, STORAGE_KEY_MODEL, STORAGE_KEY_THEME, STORAGE_KEY_HISTORY, STORAGE_KEY_SPEND].forEach((key) => {
-      window.localStorage.removeItem(key);
-    });
   }
 
   function loadMonthlySpend() {

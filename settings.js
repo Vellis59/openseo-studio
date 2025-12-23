@@ -6,7 +6,14 @@
   const OPENROUTER_DEFAULT_REFERRER = "https://openseo.studio";
 
   function getReferer() {
-    return window.location?.origin || window.location?.href || OPENROUTER_DEFAULT_REFERRER;
+    const origin = window.location?.origin || "";
+    const href = window.location?.href || "";
+
+    if (!origin || origin === "null" || origin.startsWith("file:")) {
+      return OPENROUTER_DEFAULT_REFERRER;
+    }
+
+    return origin || href || OPENROUTER_DEFAULT_REFERRER;
   }
 
   let sessionApiKey = "";

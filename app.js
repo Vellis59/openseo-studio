@@ -103,10 +103,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const toneSelect = document.getElementById("toneSelect");
   const lengthSelect = document.getElementById("lengthSelect");
   const extraInput = document.getElementById("extraInput");
-  const modelSelect = document.getElementById("modelSelect");
-  const apiKeyInput = document.getElementById("apiKeyInput");
-  const rememberKeyCheckbox = document.getElementById("rememberKeyCheckbox");
-  const masterPasswordInput = document.getElementById("masterPasswordInput");
 
   const generateBtn = document.getElementById("generateBtn");
   const copyBtn = document.getElementById("copyBtn");
@@ -179,10 +175,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const onboarding = document.getElementById("onboarding");
   const onboardingClose = document.getElementById("onboardingClose");
-  const isGeneratorPage = !!seoForm;
 
-  const STORAGE_KEY_API = window.OSSSettings?.STORAGE_KEY_API || "openseo_openrouter_key";
-  const STORAGE_KEY_MODEL = window.OSSSettings?.STORAGE_KEY_MODEL || "openseo_default_model";
   const STORAGE_KEY_THEME = "openseo_color_theme";
   const STORAGE_KEY_HISTORY = "openseo_article_history";
   const STORAGE_KEY_SPEND = "openseo_monthly_spend";
@@ -193,21 +186,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let encryptedKeyPayload = null;
   let historyCache = [];
 
-  function clearModelOptions() {
-    if (modelSelect) {
-      modelSelect.innerHTML = "";
-      const option = document.createElement("option");
-      option.value = "";
-      option.textContent = "Enter your API key to load models";
-      modelSelect.appendChild(option);
-      modelSelect.disabled = true;
-    }
-    if (window.OSSSettings?.setModel) {
-      window.OSSSettings.setModel("");
-    }
-    setGenerationDisabled(true, "Please add your OpenRouter API key in Parameters.");
-  }
-
   function setItemGuarded(key, value) {
     if (isAnonymous) return;
     window.localStorage.setItem(key, value);
@@ -215,60 +193,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function removeItem(key) {
     window.localStorage.removeItem(key);
-  }
-
-  const modelDependentButtons = [generateBtn, planBtn, generateMetadataBtn, regeneratePlanBtn];
-
-  function setGenerationDisabled(disabled, message = "") {
-    modelDependentButtons.forEach((btn) => {
-      if (btn) btn.disabled = disabled;
-    });
-
-    if (!statusEl) return;
-
-    if (disabled && message) {
-      statusEl.textContent = message;
-      statusEl.classList.remove("error", "loading");
-      if (message.toLowerCase().includes("loading")) {
-        statusEl.classList.add("loading");
-      }
-    } else if (!disabled && statusEl.classList.contains("loading")) {
-      statusEl.textContent = "Models ready.";
-      statusEl.classList.remove("loading");
-    }
-  }
-
-  async function fetchAndPopulateModels(apiKey) {
-    if (!window.OSSSettings?.loadModels) return null;
-
-    if (!apiKey) {
-      setGenerationDisabled(true, "Please add your OpenRouter API key in Parameters.");
-      return null;
-    }
-
-    setGenerationDisabled(true, "Loading models from OpenRouter...");
-
-    try {
-      const result = await window.OSSSettings.loadModels(apiKey, { modelSelect, statusEl });
-      const hasModel = !!result?.selectedModel;
-      setGenerationDisabled(!hasModel);
-
-      if (!hasModel && statusEl) {
-        statusEl.textContent = "No models returned. Check your OpenRouter key.";
-        statusEl.classList.add("error");
-        statusEl.classList.remove("loading");
-      }
-
-      return result;
-    } catch (err) {
-      setGenerationDisabled(true);
-      if (statusEl) {
-        statusEl.textContent = `Could not load models: ${err.message}`;
-        statusEl.classList.add("error");
-        statusEl.classList.remove("loading");
-      }
-      return null;
-    }
   }
 
   function loadMonthlySpend() {
@@ -487,28 +411,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  const storedModel = getSelectedModel();
+  const storedModel = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_MODEL) : null;
   if (modelSelect && storedModel) {
     modelSelect.value = storedModel;
   }
 
   if (modelSelect) {
     modelSelect.addEventListener("change", () => {
-      if (window.OSSSettings?.setModel) {
-        window.OSSSettings.setModel(modelSelect.value);
-      } else {
-        setItemGuarded(STORAGE_KEY_MODEL, modelSelect.value);
-      }
+      setItemGuarded(STORAGE_KEY_MODEL, modelSelect.value);
     });
-  }
-
-  if (isGeneratorPage) {
-    const storedKey = getStoredApiKey();
-    if (storedKey) {
-      fetchAndPopulateModels(storedKey);
-    } else {
-      clearModelOptions();
-    }
   }
 
   function persistApiKey(key) {

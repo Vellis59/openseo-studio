@@ -2,6 +2,11 @@
   const STORAGE_KEY_API = "openseo_openrouter_key";
   const STORAGE_KEY_MODEL = "openseo_default_model";
   const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
+  const OPENROUTER_APP_TITLE = "OpenSEO Studio";
+
+  function getReferer() {
+    return window.location?.origin || window.location?.href || "";
+  }
 
   let sessionApiKey = "";
 
@@ -113,7 +118,11 @@
 
       try {
         const response = await fetch(OPENROUTER_MODELS_URL, {
-          headers: { Authorization: `Bearer ${apiKey}` }
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "X-Title": OPENROUTER_APP_TITLE,
+            "HTTP-Referer": getReferer()
+          }
         });
 
         if (!response.ok) {

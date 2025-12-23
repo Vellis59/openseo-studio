@@ -1,4 +1,9 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_APP_TITLE = "OpenSEO Studio";
+const OPENROUTER_REFERRER =
+  typeof window !== "undefined"
+    ? window.location?.origin || window.location?.href || ""
+    : "";
 const MODEL_PRICING = {
   default: { prompt: 0.003, completion: 0.006 }
 };
@@ -1316,7 +1321,9 @@ document.addEventListener("DOMContentLoaded", () => {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-Title": OPENROUTER_APP_TITLE,
+        "HTTP-Referer": OPENROUTER_REFERRER
       },
       body: JSON.stringify(body)
     });

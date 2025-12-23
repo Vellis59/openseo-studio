@@ -141,6 +141,8 @@
         setStatus(`Could not load models: ${err.message}`, "error");
         setModel("");
       }
+    const updateStatus = (message) => {
+      statusEl.textContent = message;
     };
 
     const populateFromStorage = () => {
@@ -155,6 +157,13 @@
 
       fetchModels(storedKey);
     };
+
+      const storedModel = getModel();
+      const optionExists = Array.from(modelSelect.options).some((opt) => opt.value === storedModel);
+      modelSelect.value = optionExists ? storedModel : modelSelect.options[0]?.value || "";
+    };
+
+    populateFromStorage();
 
     const saveDebounced = (() => {
       let timer = null;
@@ -185,6 +194,19 @@
     apiKeyInput.addEventListener("input", handleApiKeyChange);
 
     rememberKeyCheckbox.addEventListener("change", handleApiKeyChange);
+        timer = setTimeout(() => updateStatus("Saved."), 150);
+      };
+    })();
+
+    apiKeyInput.addEventListener("input", () => {
+      setApiKey(apiKeyInput.value.trim(), rememberKeyCheckbox.checked);
+      saveDebounced();
+    });
+
+    rememberKeyCheckbox.addEventListener("change", () => {
+      setApiKey(apiKeyInput.value.trim(), rememberKeyCheckbox.checked);
+      saveDebounced();
+    });
 
     modelSelect.addEventListener("change", () => {
       setModel(modelSelect.value);
@@ -200,6 +222,9 @@
     });
 
     populateFromStorage();
+      modelSelect.value = modelSelect.options[0]?.value || "";
+      updateStatus("Cleared.");
+    });
   }
 
   function ensureApiKeyOrExplain(statusEl) {

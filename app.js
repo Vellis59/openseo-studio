@@ -320,6 +320,49 @@ document.addEventListener("DOMContentLoaded", () => {
     renderHistory(historySearch ? historySearch.value : "");
   }
 
+  /* ---------- Init from localStorage ---------- */
+
+  function hydrateApiKeyFromStorage() {
+    if (!apiKeyInput || isAnonymous) return;
+    const raw = window.localStorage.getItem(STORAGE_KEY_API);
+    if (!raw) {
+      if (onboarding) {
+        onboarding.classList.remove("hidden");
+      }
+      return;
+    }
+
+    try {
+      const payload = JSON.parse(raw);
+      encryptedKeyPayload = payload;
+      if (rememberKeyCheckbox) {
+        rememberKeyCheckbox.checked = true;
+      }
+
+      if (payload.method === "base64") {
+        const key = base64Decode(payload.cipher);
+        apiKeyInput.value = key;
+        fetchAndPopulateModels(key);
+        return;
+      }
+
+      if (payload.method === "xor") {
+        const password = masterPasswordInput ? masterPasswordInput.value : "";
+        if (password) {
+          const key = xorDecrypt(payload.cipher, password);
+          apiKeyInput.value = key;
+          fetchAndPopulateModels(key);
+        } else if (statusEl) {
+          statusEl.textContent = "Enter your master password to unlock the API key.";
+          statusEl.classList.add("error");
+        }
+      }
+    } catch (err) {
+      console.error("hydrateApiKeyFromStorage error", err);
+      window.localStorage.removeItem(STORAGE_KEY_API);
+    }
+  }
+
   historyCache = loadHistoryFromStorage();
   renderHistory();
 
@@ -363,6 +406,81 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  const storedModel = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_MODEL) : null;
+  if (modelSelect && storedModel) {
+    modelSelect.value = storedModel;
+  }
+
+  if (modelSelect) {
+    modelSelect.addEventListener("change", () => {
+      setItemGuarded(STORAGE_KEY_MODEL, modelSelect.value);
+    });
+  }
+
+  function persistApiKey(key) {
+    if (isAnonymous) {
+      removeItem(STORAGE_KEY_API);
+      return;
+    }
+
+    if (!rememberKeyCheckbox || !rememberKeyCheckbox.checked) {
+      removeItem(STORAGE_KEY_API);
+      return;
+    }
+
+    const password = masterPasswordInput ? masterPasswordInput.value.trim() : "";
+    const payload = password
+      ? { method: "xor", cipher: xorEncrypt(key, password) }
+      : { method: "base64", cipher: base64Encode(key) };
+
+    encryptedKeyPayload = payload;
+    setItemGuarded(STORAGE_KEY_API, JSON.stringify(payload));
+  }
+
+  if (apiKeyInput) {
+    apiKeyInput.addEventListener("change", () => {
+      const key = apiKeyInput.value.trim();
+      if (!key) {
+        clearModelOptions();
+        removeItem(STORAGE_KEY_API);
+        return;
+      }
+      persistApiKey(key);
+      fetchAndPopulateModels(key);
+    });
+  }
+
+  if (rememberKeyCheckbox) {
+    rememberKeyCheckbox.addEventListener("change", () => {
+      const key = apiKeyInput.value.trim();
+      if (!key) {
+        removeItem(STORAGE_KEY_API);
+        return;
+      }
+      if (rememberKeyCheckbox.checked) {
+        persistApiKey(key);
+      } else {
+        removeItem(STORAGE_KEY_API);
+      }
+    });
+  }
+
+  if (masterPasswordInput) {
+    masterPasswordInput.addEventListener("input", () => {
+      if (!encryptedKeyPayload || encryptedKeyPayload.method !== "xor") return;
+      if (apiKeyInput && !apiKeyInput.value && masterPasswordInput.value) {
+        try {
+          const key = xorDecrypt(encryptedKeyPayload.cipher, masterPasswordInput.value);
+          apiKeyInput.value = key;
+          fetchAndPopulateModels(key);
+          statusEl.classList.remove("error");
+          statusEl.textContent = "API key unlocked.";
+        } catch (err) {
+          console.error("masterPassword decrypt error", err);
+        }
+      }
+    });
+  }
 
   /* ---------- Onboarding ---------- */
 
@@ -1260,6 +1378,9 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!silent && statusEl) {
         statusEl.innerHTML =
           'Please choose a model on the <a href="parameters.html">parameters page</a> before generating a plan.';
+    if (!apiKey || !model) {
+      if (!silent) {
+        statusEl.textContent = "Please provide API key and model before generating a plan.";
         statusEl.classList.add("error");
       }
       return null;
@@ -1368,6 +1489,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!model) {
         statusEl.innerHTML =
           'Please select a model on the <a href="parameters.html">parameters page</a>.';
+        statusEl.textContent = "Please select a model on the parameters page.";
         statusEl.classList.add("error");
         return;
       }

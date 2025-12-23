@@ -5,6 +5,37 @@
   const OPENROUTER_APP_TITLE = "OpenSEO Studio";
   const OPENROUTER_DEFAULT_REFERRER = "https://openseo.studio";
 
+  async function loadOpenRouterModels(apiKey) {
+    if (!apiKey) throw new Error("Missing API key");
+    const res = await fetch("https://openrouter.ai/api/v1/models", {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      }
+    });
+
+    console.log("Loading models...", res.status);
+
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`Models fetch failed ${res.status}: ${text.slice(0, 200)}`);
+    }
+
+    let json;
+    try { json = JSON.parse(text); }
+    catch { throw new Error(`Models response not JSON: ${text.slice(0, 200)}`); }
+
+    const arr = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+    const ids = arr.map(x => x && x.id).filter(Boolean);
+
+    console.log("Models loaded:", ids.length);
+
+    if (!ids.length) throw new Error("No models returned by OpenRouter (empty list).");
+
+    return ids;
+  }
+
   function getReferer() {
     const origin = window.location?.origin || "";
     const href = window.location?.href || "";
@@ -77,34 +108,39 @@
   }
 
   function populateModelSelect(modelSelect, models) {
-    if (!modelSelect) return "";
-
-    modelSelect.innerHTML = "";
-    const sorted = models
+    const normalized = models
+      .map((m) => (typeof m === "string" ? { id: m } : m))
       .filter((m) => m?.id)
       .sort((a, b) => a.id.localeCompare(b.id));
 
-    sorted.forEach((model) => {
-      const option = document.createElement("option");
-      option.value = model.id;
-      option.textContent = model.name || model.id;
-      option.title = model.description || model.id;
-      modelSelect.appendChild(option);
-    });
+    if (modelSelect) {
+      modelSelect.innerHTML = "";
+      normalized.forEach((model) => {
+        const option = document.createElement("option");
+        option.value = model.id;
+        option.textContent = model.name || model.id;
+        option.title = model.description || model.id;
+        modelSelect.appendChild(option);
+      });
+    }
 
     const storedModel = getModel();
-    let selectedModel = storedModel && sorted.some((m) => m.id === storedModel) ? storedModel : "";
+    let selectedModel = storedModel && normalized.some((m) => m.id === storedModel) ? storedModel : "";
 
-    if (!selectedModel && sorted[0]) {
-      selectedModel = sorted[0].id;
+    if (!selectedModel && normalized[0]) {
+      selectedModel = normalized[0].id;
     }
 
     if (selectedModel) {
-      modelSelect.value = selectedModel;
+      if (modelSelect) {
+        modelSelect.value = selectedModel;
+        modelSelect.disabled = false;
+      }
       setModel(selectedModel);
+    } else if (modelSelect) {
+      modelSelect.disabled = false;
     }
 
-    modelSelect.disabled = false;
     return selectedModel;
   }
 
@@ -124,44 +160,10 @@
     setModelPlaceholder(selectEl, "Loading models...", true);
 
     try {
-      const response = await fetch(OPENROUTER_MODELS_URL, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "X-Title": OPENROUTER_APP_TITLE,
-          "HTTP-Referer": getReferer()
-        }
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        let message = `Unable to fetch models (${response.status}).`;
-        try {
-          const parsed = JSON.parse(text);
-          if (parsed?.error?.message) message = parsed.error.message;
-        } catch {
-          // ignore
-        }
-        console.error("loadModels response error", {
-          endpoint: OPENROUTER_MODELS_URL,
-          status: response.status,
-          message
-        });
-        throw new Error(`${message} (HTTP ${response.status})`);
-      }
-
-      const payload = await response.json();
-      const models = Array.isArray(payload?.data) ? payload.data : [];
-
-      if (!models.length) {
-        setModelPlaceholder(selectEl, "No models available", true);
-        setStatusMessage(statusTarget, "No models returned by OpenRouter.");
-        setModel("");
-        return { models, selectedModel: "" };
-      }
-
-      const selectedModel = populateModelSelect(selectEl, models);
+      const ids = await loadOpenRouterModels(apiKey);
+      const selectedModel = populateModelSelect(selectEl, ids);
       setStatusMessage(statusTarget, "Models loaded. Choose your preferred model.");
-      return { models, selectedModel };
+      return { models: ids, selectedModel };
     } catch (err) {
       console.error("loadModels error", {
         endpoint: OPENROUTER_MODELS_URL,
@@ -266,6 +268,7 @@
     getModel,
     setApiKey,
     setModel,
+    loadOpenRouterModels,
     loadModels,
     clearAll,
     bindParametersPage,

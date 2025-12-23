@@ -490,6 +490,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const storedModel = getSelectedModel();
   if (modelSelect && storedModel) {
     modelSelect.value = storedModel;
+  } else if (modelSelect && !storedModel) {
+    const fallbackOption = Array.from(modelSelect.options || []).find((opt) => opt.value);
+    if (fallbackOption) {
+      modelSelect.value = fallbackOption.value;
+      if (window.OSSSettings?.setModel) {
+        window.OSSSettings.setModel(fallbackOption.value);
+      } else {
+        setItemGuarded(STORAGE_KEY_MODEL, fallbackOption.value);
+      }
+    }
   }
 
   if (modelSelect) {
@@ -1587,8 +1597,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (!model) {
         statusEl.innerHTML =
-          'Please select a model on the <a href="parameters.html">parameters page</a>.';
-        statusEl.textContent = "Please select a model on the parameters page.";
+          'Missing model. Visit the <a href="parameters.html">parameters page</a> and click "Refresh models" to load one.';
         statusEl.classList.add("error");
         return;
       }

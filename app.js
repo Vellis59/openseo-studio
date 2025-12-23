@@ -163,6 +163,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const regenSelectionBtn = document.getElementById("regenSelectionBtn");
   const toneSelectionBtn = document.getElementById("toneSelectionBtn");
 
+  const getStoredApiKey = () => (window.OSSSettings ? window.OSSSettings.getApiKey() || "" : "");
+  const getSelectedModel = (fallback = "") =>
+    window.OSSSettings ? window.OSSSettings.getModel(fallback) || "" : fallback;
+
   populateLanguageSelect(languageSelect);
 
   const openHistoryBtn = document.getElementById("openHistoryBtn");
@@ -335,31 +339,6 @@ document.addEventListener("DOMContentLoaded", () => {
     renderHistory(historySearch ? historySearch.value : "");
   }
 
-  /* ---------- Menu toggle ---------- */
-
-  if (menuToggle && menuPanel) {
-    menuToggle.addEventListener("click", () => {
-      const isOpen = menuPanel.classList.contains("open");
-      if (isOpen) {
-        menuPanel.classList.remove("open");
-        menuPanel.setAttribute("aria-hidden", "true");
-      } else {
-        menuPanel.classList.add("open");
-        menuPanel.setAttribute("aria-hidden", "false");
-      }
-    });
-
-    document.addEventListener("click", (event) => {
-      if (!menuPanel.classList.contains("open")) return;
-      const isInsidePanel = menuPanel.contains(event.target);
-      const isToggle = menuToggle.contains(event.target);
-      if (!isInsidePanel && !isToggle) {
-        menuPanel.classList.remove("open");
-        menuPanel.setAttribute("aria-hidden", "true");
-      }
-    });
-  }
-
   /* ---------- Init from localStorage ---------- */
 
   function hydrateApiKeyFromStorage() {
@@ -448,7 +427,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const storedModel = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_MODEL) : null;
-  if (storedModel) {
+  if (modelSelect && storedModel) {
     modelSelect.value = storedModel;
   }
 
@@ -528,14 +507,6 @@ document.addEventListener("DOMContentLoaded", () => {
   if (onboarding && onboardingClose) {
     onboardingClose.addEventListener("click", () => {
       onboarding.classList.add("hidden");
-      // Ouvrir le panel de settings pour guider l’utilisateur
-      if (menuPanel) {
-        menuPanel.classList.add("open");
-        menuPanel.setAttribute("aria-hidden", "false");
-      }
-      if (apiKeyInput) {
-        apiKeyInput.focus();
-      }
     });
   }
 
@@ -965,7 +936,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const tokens = estimateTokens();
     tokenEstimateEl.textContent = `${tokens.toLocaleString()} tok.`;
 
-    const model = modelSelect ? modelSelect.value : "";
+    const model = getSelectedModel();
     const pricing = priceForModel(model);
     const cost = pricing.prompt
       ? (tokens / 1000) * (pricing.prompt + pricing.completion)
@@ -1315,7 +1286,7 @@ document.addEventListener("DOMContentLoaded", () => {
       version: "0.8.0",
       preferences: {
         theme: resolveTheme(),
-        model: modelSelect ? modelSelect.value : "",
+        model: getSelectedModel(),
         language: languageSelect ? languageSelect.value : "",
         tone: toneSelect ? toneSelect.value : "",
         length: lengthSelect ? lengthSelect.value : "",
@@ -1578,8 +1549,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function generatePlan({ silent } = {}) {
-    const apiKey = apiKeyInput.value.trim();
-    const model = modelSelect.value;
+    const apiKey = getStoredApiKey();
+    const model = getSelectedModel();
     if (!apiKey || !model) {
       if (!silent) {
         statusEl.textContent = "Please provide API key and model before generating a plan.";
@@ -1665,17 +1636,7 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.textContent = "";
       statusEl.classList.remove("error", "loading");
 
-      const apiKey = apiKeyInput.value.trim();
-      if (!apiKey) {
-        statusEl.textContent = "Please provide your OpenRouter API key in the settings menu.";
-        statusEl.classList.add("error");
-        if (menuPanel) {
-          menuPanel.classList.add("open");
-          menuPanel.setAttribute("aria-hidden", "false");
-        }
-        if (onboarding) {
-          onboarding.classList.remove("hidden");
-        }
+      if (!window.OSSSettings || !window.OSSSettings.ensureApiKeyOrExplain(statusEl)) {
         return;
       }
 
@@ -1695,24 +1656,16 @@ document.addEventListener("DOMContentLoaded", () => {
       const tone = toneSelect.value;
       const length = lengthSelect.value;
       const extra = extraInput.value.trim();
-      const model = modelSelect.value;
+      const model = getSelectedModel();
       const mode = promptModeSelect ? promptModeSelect.value : "standard";
 
       if (!model) {
-        statusEl.textContent = "Please select a model (load them from OpenRouter first).";
+        statusEl.textContent = "Please select a model on the parameters page.";
         statusEl.classList.add("error");
-        if (menuPanel) {
-          menuPanel.classList.add("open");
-          menuPanel.setAttribute("aria-hidden", "false");
-        }
         return;
       }
 
-      if (rememberKeyCheckbox && rememberKeyCheckbox.checked) {
-        persistApiKey(apiKey);
-      } else {
-        removeItem(STORAGE_KEY_API);
-      }
+      const apiKey = getStoredApiKey();
 
       const userPrompt = buildUserPrompt({
         keyword,
@@ -1848,12 +1801,7 @@ document.addEventListener("DOMContentLoaded", () => {
     statusEl.textContent = "";
     statusEl.classList.remove("error", "loading");
 
-    const apiKey = apiKeyInput.value.trim();
-    if (!apiKey) {
-      statusEl.textContent = "Please provide your OpenRouter API key in the settings menu.";
-      statusEl.classList.add("error");
-      return;
-    }
+    if (!window.OSSSettings || !window.OSSSettings.ensureApiKeyOrExplain(statusEl)) return;
 
     const keyword = keywordInput.value.trim();
     if (!keyword) {
@@ -1863,12 +1811,14 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const model = modelSelect.value;
+    const model = getSelectedModel();
     if (!model) {
-      statusEl.textContent = "Please select a model before generating metadata.";
+      statusEl.textContent = "Please select a model on the parameters page.";
       statusEl.classList.add("error");
       return;
     }
+
+    const apiKey = getStoredApiKey();
 
     const languageConfig = getSelectedLanguage();
     const articleContext = (outputArea ? outputArea.value : "").slice(0, 6000) || "(no draft content provided)";
@@ -1931,12 +1881,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function regenerateSelection({ changeTone = false } = {}) {
     if (!outputArea) return;
-    const apiKey = apiKeyInput.value.trim();
-    if (!apiKey) {
-      statusEl.textContent = "API key required to regenerate.";
-      statusEl.classList.add("error");
-      return;
-    }
+    if (!window.OSSSettings || !window.OSSSettings.ensureApiKeyOrExplain(statusEl)) return;
 
     const start = outputArea.selectionStart;
     const end = outputArea.selectionEnd;
@@ -1966,7 +1911,7 @@ document.addEventListener("DOMContentLoaded", () => {
       : `Improve and regenerate the selected excerpt, keeping the same meaning and Markdown hierarchy. Excerpt: ${selected}\nContext: ${contextAround}`;
 
     const body = {
-      model: modelSelect.value,
+      model: getSelectedModel(),
       messages: [
         { role: "system", content: "You rewrite Markdown excerpts while keeping structure intact." },
         { role: "user", content: prompt }
@@ -1989,7 +1934,7 @@ document.addEventListener("DOMContentLoaded", () => {
       updateInsights();
       statusEl.textContent = "Selection updated.";
       statusEl.classList.remove("loading");
-      recordCost(modelSelect.value, Math.min(maxTokens, 400));
+      recordCost(getSelectedModel(), Math.min(maxTokens, 400));
       updateEstimates();
     } catch (err) {
       console.error(err);

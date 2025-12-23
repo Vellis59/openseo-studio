@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OpenSEO Studio – Parameters</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <script src="version.js"></script>
+  <script>
+    const versionQuery = `?v=${APP_VERSION}`;
+    const versioned = (path) => `${path}${versionQuery}`;
+    const head = document.head;
+
+    const stylesheet = document.createElement("link");
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = versioned("style.css");
+    head.appendChild(stylesheet);
+
+    const favicon = document.createElement("link");
+    favicon.rel = "icon";
+    favicon.type = "image/svg+xml";
+    favicon.href = versioned("favicon.svg");
+    head.appendChild(favicon);
+
+    const settingsScript = document.createElement("script");
+    settingsScript.src = versioned("settings.js");
+    settingsScript.defer = true;
+    head.appendChild(settingsScript);
+
+    const appScript = document.createElement("script");
+    appScript.src = versioned("app.js");
+    appScript.defer = true;
+    head.appendChild(appScript);
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo-circle">OS</div>
+      <div class="topbar-title">
+        <span class="title-main">OpenSEO Studio</span>
+        <span class="title-sub">Static, BYOK, SEO-focused</span>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <a class="btn-secondary" href="index.html">Back to generator</a>
+      <button class="menu-toggle" id="themeToggle" aria-label="Toggle color theme">
+        🌗
+      </button>
+    </div>
+  </header>
+
+  <main class="page" id="parametersRoot">
+    <section class="card">
+      <h1 class="card-title">Parameters</h1>
+      <p class="card-subtitle">Manage your OpenRouter settings. Data stays in your browser.</p>
+
+      <div class="settings-grid">
+        <div class="settings-card">
+          <label class="field-label" for="apiKeyInput">
+            OpenRouter API key
+            <span class="field-help">Stored locally only if you choose to remember it.</span>
+          </label>
+          <input
+            type="password"
+            id="apiKeyInput"
+            class="field-input"
+            placeholder="sk-or-..."
+            autocomplete="off"
+          >
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="rememberKeyCheckbox">
+            <span>Remember API key in this browser</span>
+          </label>
+
+          <label class="field-label" for="modelSelect">
+            Default model
+            <span class="field-help">Saved locally. Set it before generating.</span>
+          </label>
+          <select id="modelSelect" class="field-input">
+            <option value="">Select a model</option>
+            <option value="openrouter/auto">openrouter/auto</option>
+            <option value="anthropic/claude-3.5-sonnet">anthropic/claude-3.5-sonnet</option>
+            <option value="gpt-4o-mini">gpt-4o-mini</option>
+            <option value="gpt-4o">gpt-4o</option>
+          </select>
+
+          <div class="settings-actions">
+            <button type="button" id="resetStorageBtn" class="btn-ghost">Reset local storage</button>
+          </div>
+
+          <p class="small-note">BYOK: your key is only used client-side with OpenRouter.</p>
+          <p id="settingsStatus" class="status-text"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

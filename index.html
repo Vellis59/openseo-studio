@@ -26,6 +26,11 @@
     favicon.href = versioned("favicon.svg");
     head.appendChild(favicon);
 
+    const settingsScript = document.createElement("script");
+    settingsScript.src = versioned("settings.js");
+    settingsScript.defer = true;
+    head.appendChild(settingsScript);
+
     const appScript = document.createElement("script");
     appScript.src = versioned("app.js");
     appScript.defer = true;
@@ -42,134 +47,11 @@
         <span class="title-sub">Static, BYOK, SEO-focused</span>
       </div>
     </div>
-
-    <button class="menu-toggle" id="themeToggle" aria-label="Toggle color theme">
-      🌗
-    </button>
-    <button class="menu-toggle" id="menuToggle" aria-label="Open settings">
-      ☰
-    </button>
-
-    <div class="menu-panel" id="menuPanel" aria-hidden="true">
-      <h2 class="menu-title">Settings</h2>
-
-      <label class="field-label" for="apiKey">
-        OpenRouter API key
-        <span class="field-help">Stored only in your browser if you choose so.</span>
-      </label>
-      <input
-        type="password"
-        id="apiKey"
-        class="field-input"
-        placeholder="sk-or-..."
-        autocomplete="off"
-      >
-
-      <label class="checkbox-row">
-        <input type="checkbox" id="rememberKey">
-        <span>Remember API key in this browser</span>
-      </label>
-
-      <label class="field-label" for="masterPassword">
-        Master password (optional)
-        <span class="field-help">Used to encrypt your API key locally. Leave blank to use Base64.</span>
-      </label>
-      <input
-        type="password"
-        id="masterPassword"
-        class="field-input"
-        placeholder="No password set"
-        autocomplete="off"
-      >
-
-      <label class="checkbox-row">
-        <input type="checkbox" id="anonymousMode">
-        <span>Anonymous mode (no localStorage)</span>
-      </label>
-
-      <label class="field-label" for="modelSelect">
-        Default model
-        <span class="field-help">
-          Enter your API key to load available models directly from OpenRouter.
-        </span>
-      </label>
-      <select id="modelSelect" class="field-input" disabled>
-        <option value="">Enter your API key to load models</option>
-      </select>
-
-      <label class="field-label" for="presetSelect">
-        Preset
-      </label>
-<select id="presetSelect" class="field-input">
-  <option value="">None</option>
-  <option value="guide">Guide</option>
-  <option value="long">Long Article</option>
-  <option value="tutorial">Tutorial</option>
-  <option value="comparison">Comparison</option>
-  <option value="listicle">Listicle</option>
-  <option value="news">News</option>
-</select>
-
-<label class="field-label" for="promptMode">
-  Prompt Mode
-</label>
-<select id="promptMode" class="field-input">
-  <option value="standard" selected>Standard</option>
-  <option value="minimal">Minimal</option>
-  <option value="strict-seo">Strict SEO</option>
-</select>
-<label class="checkbox-row">
-  <input type="checkbox" id="tocCheckbox">
-  <span>Add Markdown Table of Contents</span>
-</label>
-
-      <div class="expert-mode">
-        <label class="checkbox-row">
-          <input type="checkbox" id="expertToggle">
-          <span>Expert Mode (advanced parameters)</span>
-        </label>
-        <div id="expertPanel" class="expert-panel hidden">
-          <div class="grid-2">
-            <div>
-              <label class="field-label" for="temperatureInput">Temperature</label>
-              <input type="number" id="temperatureInput" class="field-input" min="0" max="2" step="0.1" value="0.7">
-            </div>
-            <div>
-              <label class="field-label" for="maxTokensInput">Max tokens</label>
-              <input type="number" id="maxTokensInput" class="field-input" min="256" max="4096" step="64" value="2048">
-            </div>
-            <div>
-              <label class="field-label" for="topPInput">Top-p</label>
-              <input type="number" id="topPInput" class="field-input" min="0" max="1" step="0.05" value="1">
-            </div>
-            <div>
-              <label class="field-label" for="frequencyPenaltyInput">Frequency penalty</label>
-              <input type="number" id="frequencyPenaltyInput" class="field-input" min="-2" max="2" step="0.1" value="0">
-            </div>
-          </div>
-          <div class="estimate-box">
-            <p class="small-note"><strong>Token estimate:</strong> <span id="tokenEstimate">—</span></p>
-            <p class="small-note"><strong>Estimated cost:</strong> <span id="costEstimate">—</span></p>
-            <p class="small-note"><strong>Monthly spend (local):</strong> <span id="monthlySpend">$0.00</span></p>
-          </div>
-        </div>
-      </div>
-
-<div class="config-actions">
-  <button type="button" id="exportConfigBtn" class="btn-secondary">Export config (JSON)</button>
-  <button type="button" id="importConfigBtn" class="btn-ghost">Import config</button>
-  <input type="file" id="importConfigInput" accept="application/json" hidden>
-</div>
-
-
-      <button type="button" id="resetStorageBtn" class="btn-ghost menu-reset">
-        Reset local storage
+    <div class="topbar-actions">
+      <a class="btn-secondary" href="parameters.html">Parameters</a>
+      <button class="menu-toggle" id="themeToggle" aria-label="Toggle color theme">
+        🌗
       </button>
-
-      <p class="menu-note">
-        OpenSEO Studio is 100% client-side.  
-        Your API key never leaves your browser except when calling OpenRouter directly.
-      </p>
     </div>
   </header>
 
@@ -445,7 +327,7 @@
     <section class="card card-secondary">
       <h2 class="card-title">How it works</h2>
       <ol class="steps-list">
-        <li>Open the settings menu and paste your OpenRouter API key.</li>
+        <li>Open the Parameters page and paste your OpenRouter API key.</li>
         <li>Select your preferred model.</li>
         <li>Enter a keyword and configure tone, length, and language.</li>
         <li>Click “Generate article” and wait for the response.</li>

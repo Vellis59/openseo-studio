@@ -3,6 +3,8 @@
   const STORAGE_KEY_MODEL = "openseo_default_model";
   const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 
+  let sessionApiKey = "";
+
   function decodeLegacyApiKey(raw) {
     if (!raw) return "";
     try {
@@ -18,8 +20,8 @@
 
   function getApiKey() {
     const raw = window.localStorage.getItem(STORAGE_KEY_API);
-    if (!raw) return "";
-    return decodeLegacyApiKey(raw) || raw;
+    if (raw) return decodeLegacyApiKey(raw) || raw;
+    return sessionApiKey || "";
   }
 
   function getModel(defaultValue = "") {
@@ -28,6 +30,7 @@
   }
 
   function setApiKey(apiKey, remember) {
+    sessionApiKey = apiKey || "";
     if (!remember) {
       window.localStorage.removeItem(STORAGE_KEY_API);
       return;
@@ -44,6 +47,7 @@
   }
 
   function clearAll() {
+    sessionApiKey = "";
     window.localStorage.removeItem(STORAGE_KEY_API);
     window.localStorage.removeItem(STORAGE_KEY_MODEL);
   }
@@ -100,6 +104,7 @@
     const fetchModels = async (apiKey) => {
       if (!apiKey) {
         setModelPlaceholder("Enter your API key to load models");
+        setStatus("Enter your API key to load models.");
         return;
       }
 
@@ -141,35 +146,29 @@
         setStatus(`Could not load models: ${err.message}`, "error");
         setModel("");
       }
-    const updateStatus = (message) => {
-      statusEl.textContent = message;
     };
 
     const populateFromStorage = () => {
       const storedKey = getApiKey();
       apiKeyInput.value = storedKey;
-      rememberKeyCheckbox.checked = !!storedKey;
+      rememberKeyCheckbox.checked = !!window.localStorage.getItem(STORAGE_KEY_API);
 
       if (!storedKey) {
         setModelPlaceholder("Enter your API key to load models");
+        setStatus("Enter your API key to load models.");
         return;
       }
 
       fetchModels(storedKey);
     };
 
-      const storedModel = getModel();
-      const optionExists = Array.from(modelSelect.options).some((opt) => opt.value === storedModel);
-      modelSelect.value = optionExists ? storedModel : modelSelect.options[0]?.value || "";
-    };
-
     populateFromStorage();
 
     const saveDebounced = (() => {
       let timer = null;
-      return () => {
+      return (message = "Saved.") => {
         clearTimeout(timer);
-        timer = setTimeout(() => setStatus("Saved."), 150);
+        timer = setTimeout(() => setStatus(message), 150);
       };
     })();
 
@@ -177,40 +176,20 @@
 
     const handleApiKeyChange = () => {
       const key = apiKeyInput.value.trim();
-      if (rememberKeyCheckbox.checked) {
-        setApiKey(key, true);
-      } else {
-        setApiKey("", false);
-      }
+      setApiKey(key, rememberKeyCheckbox.checked);
 
       clearTimeout(fetchTimer);
-      fetchTimer = setTimeout(() => {
-        fetchModels(key);
-      }, 300);
+      fetchTimer = setTimeout(() => fetchModels(key), 300);
 
-      saveDebounced();
+      saveDebounced(key ? "API key updated." : "API key cleared.");
     };
 
     apiKeyInput.addEventListener("input", handleApiKeyChange);
-
     rememberKeyCheckbox.addEventListener("change", handleApiKeyChange);
-        timer = setTimeout(() => updateStatus("Saved."), 150);
-      };
-    })();
-
-    apiKeyInput.addEventListener("input", () => {
-      setApiKey(apiKeyInput.value.trim(), rememberKeyCheckbox.checked);
-      saveDebounced();
-    });
-
-    rememberKeyCheckbox.addEventListener("change", () => {
-      setApiKey(apiKeyInput.value.trim(), rememberKeyCheckbox.checked);
-      saveDebounced();
-    });
 
     modelSelect.addEventListener("change", () => {
       setModel(modelSelect.value);
-      saveDebounced();
+      saveDebounced("Model saved.");
     });
 
     resetStorageBtn.addEventListener("click", () => {
@@ -219,11 +198,6 @@
       rememberKeyCheckbox.checked = false;
       setModelPlaceholder("Enter your API key to load models");
       setStatus("Cleared.");
-    });
-
-    populateFromStorage();
-      modelSelect.value = modelSelect.options[0]?.value || "";
-      updateStatus("Cleared.");
     });
   }
 

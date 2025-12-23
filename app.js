@@ -1,6 +1,4 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
-
 const MODEL_PRICING = {
   default: { prompt: 0.003, completion: 0.006 }
 };
@@ -92,16 +90,7 @@ function populateLanguageSelect(selectEl) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  const menuToggle = document.getElementById("menuToggle");
-  const menuPanel = document.getElementById("menuPanel");
   const themeToggle = document.getElementById("themeToggle");
-
-  const apiKeyInput = document.getElementById("apiKey");
-  const rememberKeyCheckbox = document.getElementById("rememberKey");
-  const masterPasswordInput = document.getElementById("masterPassword");
-  const anonymousModeCheckbox = document.getElementById("anonymousMode");
-  const modelSelect = document.getElementById("modelSelect");
-  const resetStorageBtn = document.getElementById("resetStorageBtn");
 
   const seoForm = document.getElementById("seoForm");
   const keywordInput = document.getElementById("keyword");
@@ -182,8 +171,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const onboarding = document.getElementById("onboarding");
   const onboardingClose = document.getElementById("onboardingClose");
 
-  const STORAGE_KEY_API = "openseo_openrouter_key";
-  const STORAGE_KEY_MODEL = "openseo_default_model";
   const STORAGE_KEY_THEME = "openseo_color_theme";
   const STORAGE_KEY_HISTORY = "openseo_article_history";
   const STORAGE_KEY_SPEND = "openseo_monthly_spend";
@@ -201,12 +188,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function removeItem(key) {
     window.localStorage.removeItem(key);
-  }
-
-  function clearAppStorage() {
-    [STORAGE_KEY_API, STORAGE_KEY_MODEL, STORAGE_KEY_THEME, STORAGE_KEY_HISTORY, STORAGE_KEY_SPEND].forEach((key) => {
-      window.localStorage.removeItem(key);
-    });
   }
 
   function loadMonthlySpend() {
@@ -384,7 +365,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   historyCache = loadHistoryFromStorage();
   renderHistory();
-  hydrateApiKeyFromStorage();
 
   /* ---------- Theme toggle ---------- */
 
@@ -561,72 +541,6 @@ document.addEventListener("DOMContentLoaded", () => {
         extraInput.value = preset.extra;
       }
       updateEstimates();
-    });
-  }
-
-  /* ---------- Reset localStorage ---------- */
-
-  if (resetStorageBtn) {
-    resetStorageBtn.addEventListener("click", () => {
-      clearAppStorage();
-      historyCache = [];
-      renderHistory();
-      apiKeyInput.value = "";
-      if (masterPasswordInput) {
-        masterPasswordInput.value = "";
-      }
-      if (rememberKeyCheckbox) {
-        rememberKeyCheckbox.checked = false;
-      }
-      if (anonymousModeCheckbox) {
-        anonymousModeCheckbox.checked = false;
-        isAnonymous = false;
-      }
-      statusEl.classList.remove("error", "loading");
-      statusEl.textContent = "Local storage cleared.";
-
-      clearModelOptions();
-
-      if (onboarding) {
-        onboarding.classList.remove("hidden");
-      }
-    });
-  }
-
-  /* ---------- Anonymous mode ---------- */
-
-  function applyAnonymousMode(enabled) {
-    isAnonymous = enabled;
-
-    if (rememberKeyCheckbox) {
-      rememberKeyCheckbox.checked = false;
-      rememberKeyCheckbox.disabled = enabled;
-    }
-    if (masterPasswordInput) {
-      masterPasswordInput.value = "";
-      masterPasswordInput.disabled = enabled;
-    }
-
-    if (enabled) {
-      clearAppStorage();
-      historyCache = [];
-      renderHistory();
-      if (apiKeyInput) apiKeyInput.value = "";
-      clearModelOptions();
-      statusEl.textContent = "Anonymous mode enabled. Nothing will be saved.";
-      statusEl.classList.remove("error", "loading");
-      updateEstimates();
-    } else {
-      historyCache = loadHistoryFromStorage();
-      renderHistory();
-      hydrateApiKeyFromStorage();
-      applyTheme(resolveTheme());
-    }
-  }
-
-  if (anonymousModeCheckbox) {
-    anonymousModeCheckbox.addEventListener("change", () => {
-      applyAnonymousMode(anonymousModeCheckbox.checked);
     });
   }
 
@@ -1048,104 +962,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  /* ---------- Load models from OpenRouter ---------- */
-
-  async function fetchAndPopulateModels(apiKey) {
-    if (!modelSelect) return;
-
-    modelSelect.disabled = true;
-    statusEl.classList.remove("error");
-    statusEl.classList.add("loading");
-    statusEl.textContent = "Loading models from OpenRouter...";
-
-    try {
-      const response = await fetch(OPENROUTER_MODELS_URL, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`
-        }
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        let message = `Unable to fetch models (${response.status}).`;
-        try {
-          const parsed = JSON.parse(text);
-          if (parsed?.error?.message) {
-            message = parsed.error.message;
-          }
-        } catch {
-          // noop
-        }
-        throw new Error(message);
-      }
-
-      const payload = await response.json();
-      const models = Array.isArray(payload?.data) ? payload.data : [];
-      populateModelOptions(models);
-      statusEl.classList.remove("loading");
-      statusEl.textContent = models.length
-        ? "Models loaded. Choose your preferred model."
-        : "No models returned by OpenRouter.";
-    } catch (err) {
-      console.error("fetchAndPopulateModels error:", err);
-      statusEl.classList.remove("loading");
-      statusEl.classList.add("error");
-      statusEl.textContent = `Could not load models: ${err.message}`;
-      clearModelOptions();
-    }
-  }
-
-  function populateModelOptions(models) {
-    if (!modelSelect) return;
-
-    modelSelect.innerHTML = "";
-
-    if (!models.length) {
-      const option = document.createElement("option");
-      option.value = "";
-      option.textContent = "No models available";
-      modelSelect.appendChild(option);
-      modelSelect.disabled = true;
-      removeItem(STORAGE_KEY_MODEL);
-      return;
-    }
-
-    const storedModel = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_MODEL) : null;
-    const sortedModels = models
-      .filter((m) => m?.id)
-      .sort((a, b) => a.id.localeCompare(b.id));
-
-    sortedModels.forEach((model) => {
-      const option = document.createElement("option");
-      option.value = model.id;
-      option.textContent = model.name || model.id;
-      option.title = model.description || model.id;
-      modelSelect.appendChild(option);
-    });
-
-    if (storedModel && sortedModels.some((m) => m.id === storedModel)) {
-      modelSelect.value = storedModel;
-    }
-
-    if (!modelSelect.value && sortedModels[0]) {
-      modelSelect.value = sortedModels[0].id;
-      setItemGuarded(STORAGE_KEY_MODEL, sortedModels[0].id);
-    }
-
-    modelSelect.disabled = false;
-  }
-
-  function clearModelOptions() {
-    if (!modelSelect) return;
-    modelSelect.innerHTML = "";
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = "Enter your API key to load models";
-    modelSelect.appendChild(placeholder);
-    modelSelect.disabled = true;
-    removeItem(STORAGE_KEY_MODEL);
-  }
-
   /* ---------- Copy Markdown ---------- */
 
   if (copyBtn) {
@@ -1551,6 +1367,17 @@ document.addEventListener("DOMContentLoaded", () => {
   async function generatePlan({ silent } = {}) {
     const apiKey = getStoredApiKey();
     const model = getSelectedModel();
+
+    if (!apiKey) {
+      if (!silent && (!window.OSSSettings || !window.OSSSettings.ensureApiKeyOrExplain(statusEl))) {
+        return null;
+      }
+    }
+
+    if (!model) {
+      if (!silent && statusEl) {
+        statusEl.innerHTML =
+          'Please choose a model on the <a href="parameters.html">parameters page</a> before generating a plan.';
     if (!apiKey || !model) {
       if (!silent) {
         statusEl.textContent = "Please provide API key and model before generating a plan.";
@@ -1660,6 +1487,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const mode = promptModeSelect ? promptModeSelect.value : "standard";
 
       if (!model) {
+        statusEl.innerHTML =
+          'Please select a model on the <a href="parameters.html">parameters page</a>.';
         statusEl.textContent = "Please select a model on the parameters page.";
         statusEl.classList.add("error");
         return;

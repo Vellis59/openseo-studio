@@ -1474,6 +1474,9 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!silent && statusEl) {
         statusEl.innerHTML =
           'Please choose a model on the <a href="parameters.html">parameters page</a> before generating a plan.';
+      }
+    }
+
     if (!apiKey || !model) {
       if (!silent) {
         statusEl.textContent = "Please provide API key and model before generating a plan.";
@@ -1870,11 +1873,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (regenSelectionBtn) {
-    regenSelectionBtn.addEventListener("click", () => regenerateSelection());
+    regenSelectionBtn.addEventListener("click", () => {
+      regenerateSelection();
+    });
   }
 
   if (toneSelectionBtn) {
-    toneSelectionBtn.addEventListener("click", () => regenerateSelection({ changeTone: true }));
+    toneSelectionBtn.addEventListener("click", () => {
+      regenerateSelection({ changeTone: true });
+    });
   }
 
   /* ---------- Service worker ---------- */

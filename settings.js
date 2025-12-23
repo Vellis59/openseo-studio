@@ -3,9 +3,10 @@
   const STORAGE_KEY_MODEL = "openseo_default_model";
   const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
   const OPENROUTER_APP_TITLE = "OpenSEO Studio";
+  const OPENROUTER_DEFAULT_REFERRER = "https://openseo.studio";
 
   function getReferer() {
-    return window.location?.origin || window.location?.href || "";
+    return window.location?.origin || window.location?.href || OPENROUTER_DEFAULT_REFERRER;
   }
 
   let sessionApiKey = "";

@@ -2,8 +2,8 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_APP_TITLE = "OpenSEO Studio";
 const OPENROUTER_REFERRER =
   typeof window !== "undefined"
-    ? window.location?.origin || window.location?.href || ""
-    : "";
+    ? window.location?.origin || window.location?.href || "https://openseo.studio"
+    : "https://openseo.studio";
 const MODEL_PRICING = {
   default: { prompt: 0.003, completion: 0.006 }
 };

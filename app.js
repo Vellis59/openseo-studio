@@ -1249,9 +1249,17 @@ document.addEventListener("DOMContentLoaded", () => {
   async function generatePlan({ silent } = {}) {
     const apiKey = getStoredApiKey();
     const model = getSelectedModel();
-    if (!apiKey || !model) {
-      if (!silent) {
-        statusEl.textContent = "Please provide API key and model before generating a plan.";
+
+    if (!apiKey) {
+      if (!silent && (!window.OSSSettings || !window.OSSSettings.ensureApiKeyOrExplain(statusEl))) {
+        return null;
+      }
+    }
+
+    if (!model) {
+      if (!silent && statusEl) {
+        statusEl.innerHTML =
+          'Please choose a model on the <a href="parameters.html">parameters page</a> before generating a plan.';
         statusEl.classList.add("error");
       }
       return null;
@@ -1358,7 +1366,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const mode = promptModeSelect ? promptModeSelect.value : "standard";
 
       if (!model) {
-        statusEl.textContent = "Please select a model on the parameters page.";
+        statusEl.innerHTML =
+          'Please select a model on the <a href="parameters.html">parameters page</a>.';
         statusEl.classList.add("error");
         return;
       }

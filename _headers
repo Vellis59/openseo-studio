@@ -1,0 +1,39 @@
+# =========================================================
+# OpenSEO Studio – Cache headers for Cloudflare Pages
+# Fixes stale cache issues between deployments
+# =========================================================
+
+# ---------------------------------------------------------
+# HTML documents
+# Always revalidate (no hard cache)
+# ---------------------------------------------------------
+/*
+  Cache-Control: no-cache
+
+# ---------------------------------------------------------
+# CSS files
+# Cached but always revalidated
+# ---------------------------------------------------------
+/*.css
+  Cache-Control: public, max-age=0, must-revalidate
+
+# ---------------------------------------------------------
+# JavaScript files
+# Cached but always revalidated
+# ---------------------------------------------------------
+/*.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+# ---------------------------------------------------------
+# Images & static assets (long cache, immutable)
+# ---------------------------------------------------------
+/*.png
+/*.jpg
+/*.jpeg
+/*.svg
+/*.webp
+/*.woff
+/*.woff2
+/*.ttf
+/*.ico
+  Cache-Control: public, max-age=31536000, immutable

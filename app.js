@@ -122,6 +122,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const exportModalTitle = document.getElementById("exportModalTitle");
   const exportModalSubtitle = document.getElementById("exportModalSubtitle");
   const exportModalBody = document.getElementById("exportModalBody");
+  const aboutToggle = document.getElementById("aboutToggle");
+  const aboutModal = document.getElementById("aboutModal");
+  const closeAboutModalBtn = document.getElementById("closeAboutModalBtn");
 
   const presetSelect = document.getElementById("presetSelect");
   const promptModeSelect = document.getElementById("promptMode");
@@ -182,8 +185,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const importConfigBtn = document.getElementById("importConfigBtn");
   const importConfigInput = document.getElementById("importConfigInput");
 
-  const onboarding = document.getElementById("onboarding");
-  const onboardingClose = document.getElementById("onboardingClose");
+  const welcomeOverlay = document.getElementById("welcomeOverlay");
+  const welcomeGetStarted = document.getElementById("welcomeGetStarted");
+  const welcomeLearnMore = document.getElementById("welcomeLearnMore");
 
   const generationOptionsBtn = document.getElementById("generationOptionsBtn");
   const generationOptionsPanel = document.getElementById("generationOptionsPanel");
@@ -194,6 +198,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const STORAGE_KEY_HISTORY = "openseo_article_history";
   const STORAGE_KEY_SPEND = "openseo_monthly_spend";
   const STORAGE_KEY_GENERATION_OPTIONS = "openseo_generation_options";
+  const STORAGE_KEY_WELCOME = "openseo_welcome_dismissed";
 
   const MAX_HISTORY_ITEMS = 20;
   const GENERATION_OPTIONS_DEFAULTS = {
@@ -222,7 +227,8 @@ document.addEventListener("DOMContentLoaded", () => {
       STORAGE_KEY_THEME,
       STORAGE_KEY_HISTORY,
       STORAGE_KEY_SPEND,
-      STORAGE_KEY_GENERATION_OPTIONS
+      STORAGE_KEY_GENERATION_OPTIONS,
+      STORAGE_KEY_WELCOME
     ].forEach((key) => {
       window.localStorage.removeItem(key);
     });
@@ -446,9 +452,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!apiKeyInput || isAnonymous) return;
     const raw = window.localStorage.getItem(STORAGE_KEY_API);
     if (!raw) {
-      if (onboarding) {
-        onboarding.classList.remove("hidden");
-      }
       return;
     }
 
@@ -486,6 +489,7 @@ document.addEventListener("DOMContentLoaded", () => {
   historyCache = loadHistoryFromStorage();
   renderHistory();
   hydrateApiKeyFromStorage();
+  showWelcomeIfNeeded();
 
   /* ---------- Theme toggle ---------- */
 
@@ -605,18 +609,84 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  /* ---------- Onboarding ---------- */
+  /* ---------- Welcome overlay ---------- */
 
-  if (onboarding && onboardingClose) {
-    onboardingClose.addEventListener("click", () => {
-      onboarding.classList.add("hidden");
-      // Ouvrir le panel de settings pour guider l’utilisateur
+  function hasStoredApiKey() {
+    const inputKey = apiKeyInput ? sanitizeApiKey(apiKeyInput.value) : "";
+    if (inputKey) return true;
+    if (isAnonymous) return false;
+    const raw = window.localStorage.getItem(STORAGE_KEY_API);
+    return !!raw;
+  }
+
+  function isWelcomeDismissed() {
+    if (isAnonymous) return false;
+    return window.localStorage.getItem(STORAGE_KEY_WELCOME) === "1";
+  }
+
+  function openWelcomeOverlay() {
+    if (!welcomeOverlay) return;
+    welcomeOverlay.classList.add("open");
+    welcomeOverlay.setAttribute("aria-hidden", "false");
+    if (welcomeGetStarted) {
+      welcomeGetStarted.focus();
+    }
+  }
+
+  function closeWelcomeOverlay({ persist = true } = {}) {
+    if (!welcomeOverlay) return;
+    welcomeOverlay.classList.remove("open");
+    welcomeOverlay.setAttribute("aria-hidden", "true");
+    if (persist && !isAnonymous) {
+      window.localStorage.setItem(STORAGE_KEY_WELCOME, "1");
+    }
+  }
+
+  function showWelcomeIfNeeded() {
+    if (!welcomeOverlay) return;
+    if (hasStoredApiKey()) {
+      closeWelcomeOverlay({ persist: false });
+      return;
+    }
+    if (!isWelcomeDismissed()) {
+      openWelcomeOverlay();
+    }
+  }
+
+  if (welcomeGetStarted) {
+    welcomeGetStarted.addEventListener("click", () => {
+      closeWelcomeOverlay();
       if (menuPanel) {
         menuPanel.classList.add("open");
         menuPanel.setAttribute("aria-hidden", "false");
       }
       if (apiKeyInput) {
         apiKeyInput.focus();
+      }
+    });
+  }
+
+  if (welcomeLearnMore) {
+    welcomeLearnMore.addEventListener("click", () => {
+      closeWelcomeOverlay();
+      if (aboutToggle) {
+        aboutToggle.click();
+      }
+    });
+  }
+
+  if (welcomeOverlay) {
+    welcomeOverlay.addEventListener("click", (event) => {
+      if (event.target === welcomeOverlay) {
+        closeWelcomeOverlay();
+      }
+    });
+  }
+
+  if (apiKeyInput) {
+    apiKeyInput.addEventListener("input", () => {
+      if (hasStoredApiKey()) {
+        closeWelcomeOverlay({ persist: false });
       }
     });
   }
@@ -699,9 +769,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       clearModelOptions();
 
-      if (onboarding) {
-        onboarding.classList.remove("hidden");
-      }
+      showWelcomeIfNeeded();
     });
   }
 
@@ -735,6 +803,7 @@ document.addEventListener("DOMContentLoaded", () => {
       applyTheme(resolveTheme());
       persistGenerationOptions(generationOptions);
     }
+    showWelcomeIfNeeded();
   }
 
   if (anonymousModeCheckbox) {
@@ -810,6 +879,8 @@ document.addEventListener("DOMContentLoaded", () => {
       closeExportMenu();
       closeExportModal();
       closeHistoryOverlay();
+      closeAboutModal();
+      closeWelcomeOverlay();
     }
   });
 
@@ -1512,6 +1583,39 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  /* ---------- About modal ---------- */
+
+  function openAboutModal() {
+    if (!aboutModal) return;
+    aboutModal.classList.add("open");
+    aboutModal.setAttribute("aria-hidden", "false");
+    if (closeAboutModalBtn) {
+      closeAboutModalBtn.focus();
+    }
+  }
+
+  function closeAboutModal() {
+    if (!aboutModal) return;
+    aboutModal.classList.remove("open");
+    aboutModal.setAttribute("aria-hidden", "true");
+  }
+
+  if (aboutToggle) {
+    aboutToggle.addEventListener("click", openAboutModal);
+  }
+
+  if (closeAboutModalBtn) {
+    closeAboutModalBtn.addEventListener("click", closeAboutModal);
+  }
+
+  if (aboutModal) {
+    aboutModal.addEventListener("click", (event) => {
+      if (event.target === aboutModal) {
+        closeAboutModal();
+      }
+    });
+  }
+
   document.addEventListener("click", (event) => {
     if (!exportMenu || !exportMenu.classList.contains("open")) return;
     if (exportMenu.contains(event.target)) return;
@@ -1944,9 +2048,7 @@ document.addEventListener("DOMContentLoaded", () => {
           menuPanel.classList.add("open");
           menuPanel.setAttribute("aria-hidden", "false");
         }
-        if (onboarding) {
-          onboarding.classList.remove("hidden");
-        }
+        showWelcomeIfNeeded();
         return;
       }
 

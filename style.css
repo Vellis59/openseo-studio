@@ -7,6 +7,13 @@
   --accent: #2563eb;
   --accent-soft: rgba(37, 99, 235, 0.15);
   --accent-secondary: #10b981;
+  --button-secondary-bg: rgba(16, 185, 129, 0.14);
+  --button-secondary-text: #a7f3d0;
+  --button-secondary-border: rgba(16, 185, 129, 0.7);
+  --button-secondary-hover-bg: rgba(16, 185, 129, 0.2);
+  --button-secondary-disabled-bg: rgba(16, 185, 129, 0.08);
+  --button-secondary-disabled-text: #6ee7b7;
+  --button-secondary-disabled-border: rgba(16, 185, 129, 0.35);
   --text-main: #e5e7eb;
   --text-muted: #9ca3af;
   --danger: #f97373;
@@ -26,6 +33,13 @@
   --accent: #2563eb;
   --accent-soft: rgba(37, 99, 235, 0.12);
   --accent-secondary: #089c74;
+  --button-secondary-bg: #0f766e;
+  --button-secondary-text: #f8fafc;
+  --button-secondary-border: #0f766e;
+  --button-secondary-hover-bg: #0b5f57;
+  --button-secondary-disabled-bg: #d1fae5;
+  --button-secondary-disabled-text: #1f2937;
+  --button-secondary-disabled-border: #5eead4;
   --text-main: #0f172a;
   --text-muted: #475569;
   --danger: #dc2626;
@@ -456,9 +470,9 @@ body {
 }
 
 .btn-secondary {
-  background: rgba(16, 185, 129, 0.14);
-  color: #a7f3d0;
-  border-color: rgba(16, 185, 129, 0.7);
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border-color: var(--button-secondary-border);
 }
 
 .btn-ghost {
@@ -471,8 +485,15 @@ body {
   filter: brightness(1.05);
 }
 
-.btn-secondary:hover {
-  background: rgba(16, 185, 129, 0.2);
+.btn-secondary:hover:not(:disabled) {
+  background: var(--button-secondary-hover-bg);
+}
+
+.btn-secondary:disabled {
+  background: var(--button-secondary-disabled-bg);
+  color: var(--button-secondary-disabled-text);
+  border-color: var(--button-secondary-disabled-border);
+  cursor: not-allowed;
 }
 
 .btn-ghost:hover {

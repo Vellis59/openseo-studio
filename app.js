@@ -178,17 +178,26 @@ document.addEventListener("DOMContentLoaded", () => {
   const onboarding = document.getElementById("onboarding");
   const onboardingClose = document.getElementById("onboardingClose");
 
+  const generationOptionsBtn = document.getElementById("generationOptionsBtn");
+  const generationOptionsPanel = document.getElementById("generationOptionsPanel");
+
   const STORAGE_KEY_API = "openseo_openrouter_key";
   const STORAGE_KEY_MODEL = "openseo_default_model";
   const STORAGE_KEY_THEME = "openseo_color_theme";
   const STORAGE_KEY_HISTORY = "openseo_article_history";
   const STORAGE_KEY_SPEND = "openseo_monthly_spend";
+  const STORAGE_KEY_GENERATION_OPTIONS = "openseo_generation_options";
 
   const MAX_HISTORY_ITEMS = 20;
+  const GENERATION_OPTIONS_DEFAULTS = {
+    promptMode: "standard",
+    tocEnabled: false
+  };
 
   let isAnonymous = false;
   let encryptedKeyPayload = null;
   let historyCache = [];
+  let generationOptions = { ...GENERATION_OPTIONS_DEFAULTS };
 
   function setItemGuarded(key, value) {
     if (isAnonymous) return;
@@ -200,7 +209,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function clearAppStorage() {
-    [STORAGE_KEY_API, STORAGE_KEY_MODEL, STORAGE_KEY_THEME, STORAGE_KEY_HISTORY, STORAGE_KEY_SPEND].forEach((key) => {
+    [
+      STORAGE_KEY_API,
+      STORAGE_KEY_MODEL,
+      STORAGE_KEY_THEME,
+      STORAGE_KEY_HISTORY,
+      STORAGE_KEY_SPEND,
+      STORAGE_KEY_GENERATION_OPTIONS
+    ].forEach((key) => {
       window.localStorage.removeItem(key);
     });
   }
@@ -214,6 +230,54 @@ document.addEventListener("DOMContentLoaded", () => {
   function persistMonthlySpend(value) {
     if (isAnonymous) return;
     setItemGuarded(STORAGE_KEY_SPEND, String(value.toFixed(2)));
+  }
+
+  function normalizeGenerationOptions(options = {}) {
+    return {
+      promptMode: options.promptMode || GENERATION_OPTIONS_DEFAULTS.promptMode,
+      tocEnabled: Boolean(options.tocEnabled)
+    };
+  }
+
+  function loadGenerationOptions() {
+    if (isAnonymous) {
+      return { ...GENERATION_OPTIONS_DEFAULTS };
+    }
+    const raw = window.localStorage.getItem(STORAGE_KEY_GENERATION_OPTIONS);
+    if (!raw) {
+      return { ...GENERATION_OPTIONS_DEFAULTS };
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      return normalizeGenerationOptions(parsed);
+    } catch (err) {
+      console.warn("Unable to parse generation options:", err);
+      return { ...GENERATION_OPTIONS_DEFAULTS };
+    }
+  }
+
+  function persistGenerationOptions(options) {
+    if (isAnonymous) return;
+    setItemGuarded(STORAGE_KEY_GENERATION_OPTIONS, JSON.stringify(options));
+  }
+
+  function applyGenerationOptions(options) {
+    generationOptions = normalizeGenerationOptions(options);
+    if (promptModeSelect) {
+      promptModeSelect.value = generationOptions.promptMode;
+    }
+    if (tocCheckbox) {
+      tocCheckbox.checked = generationOptions.tocEnabled;
+    }
+  }
+
+  function syncGenerationOptionsFromUI() {
+    if (!promptModeSelect || !tocCheckbox) return;
+    generationOptions = normalizeGenerationOptions({
+      promptMode: promptModeSelect.value,
+      tocEnabled: tocCheckbox.checked
+    });
+    persistGenerationOptions(generationOptions);
   }
 
   function base64Encode(text) {
@@ -618,12 +682,13 @@ document.addEventListener("DOMContentLoaded", () => {
       if (rememberKeyCheckbox) {
         rememberKeyCheckbox.checked = false;
       }
-      if (anonymousModeCheckbox) {
-        anonymousModeCheckbox.checked = false;
-        isAnonymous = false;
-      }
-      statusEl.classList.remove("error", "loading");
-      statusEl.textContent = "Local storage cleared.";
+    if (anonymousModeCheckbox) {
+      anonymousModeCheckbox.checked = false;
+      isAnonymous = false;
+    }
+    applyGenerationOptions(GENERATION_OPTIONS_DEFAULTS);
+    statusEl.classList.remove("error", "loading");
+    statusEl.textContent = "Local storage cleared.";
 
       clearModelOptions();
 
@@ -661,6 +726,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderHistory();
       hydrateApiKeyFromStorage();
       applyTheme(resolveTheme());
+      persistGenerationOptions(generationOptions);
     }
   }
 
@@ -683,6 +749,59 @@ document.addEventListener("DOMContentLoaded", () => {
       updateEstimates();
     });
   }
+
+  applyGenerationOptions(loadGenerationOptions());
+
+  if (promptModeSelect) {
+    promptModeSelect.addEventListener("change", syncGenerationOptionsFromUI);
+  }
+
+  if (tocCheckbox) {
+    tocCheckbox.addEventListener("change", syncGenerationOptionsFromUI);
+  }
+
+  function openGenerationOptions() {
+    if (!generationOptionsPanel || !generationOptionsBtn) return;
+    generationOptionsPanel.classList.add("open");
+    generationOptionsPanel.setAttribute("aria-hidden", "false");
+    generationOptionsBtn.setAttribute("aria-expanded", "true");
+  }
+
+  function closeGenerationOptions() {
+    if (!generationOptionsPanel || !generationOptionsBtn) return;
+    generationOptionsPanel.classList.remove("open");
+    generationOptionsPanel.setAttribute("aria-hidden", "true");
+    generationOptionsBtn.setAttribute("aria-expanded", "false");
+  }
+
+  function toggleGenerationOptions() {
+    if (!generationOptionsPanel || !generationOptionsBtn) return;
+    if (generationOptionsPanel.classList.contains("open")) {
+      closeGenerationOptions();
+    } else {
+      openGenerationOptions();
+    }
+  }
+
+  if (generationOptionsBtn) {
+    generationOptionsBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleGenerationOptions();
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    if (!generationOptionsPanel || !generationOptionsPanel.classList.contains("open")) return;
+    if (generationOptionsPanel.contains(event.target)) return;
+    if (generationOptionsBtn && generationOptionsBtn.contains(event.target)) return;
+    closeGenerationOptions();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeGenerationOptions();
+    }
+  });
 
   /* ---------- Editor & preview sync ---------- */
 
@@ -1330,9 +1449,9 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ---------- Config import/export ---------- */
 
   function buildConfigSnapshot() {
-    // v0.9.2 settings export focuses on global preferences only.
+    // v0.9.3 settings export focuses on global preferences only.
     return {
-      version: "0.9.2",
+      version: "0.9.3",
       preferences: {
         theme: resolveTheme(),
         model: modelSelect ? modelSelect.value : "",

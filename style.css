@@ -344,6 +344,49 @@ body {
   align-items: center;
 }
 
+.generation-controls {
+  position: relative;
+}
+
+.generation-options-toggle {
+  padding: 0.45rem 0.95rem;
+  font-size: 0.82rem;
+}
+
+.generation-options-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.7rem);
+  width: min(320px, 92vw);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 30;
+}
+
+.generation-options-panel.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.generation-options-panel .panel-title {
+  margin: 0;
+}
+
+.generation-options-panel .panel-sub {
+  margin: 0 0 0.25rem;
+}
+
 .btn-primary,
 .btn-secondary,
 .btn-ghost {

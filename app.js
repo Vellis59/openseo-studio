@@ -1024,7 +1024,7 @@ document.addEventListener("DOMContentLoaded", () => {
     planEditor.addEventListener("input", updateEstimates);
   }
 
-  [modelSelect, temperatureInput, maxTokensInput, topPInput, frequencyPenaltyInput].forEach((el) => {
+  [modelSelect, temperatureInput, maxTokensInput, topPInput].forEach((el) => {
     if (!el) return;
     el.addEventListener("change", updateEstimates);
   });
@@ -1311,24 +1311,18 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ---------- Config import/export ---------- */
 
   function buildConfigSnapshot() {
+    // v0.9.2 settings export focuses on global preferences only.
     return {
-      version: "0.8.0",
+      version: "0.9.2",
       preferences: {
         theme: resolveTheme(),
         model: modelSelect ? modelSelect.value : "",
-        language: languageSelect ? languageSelect.value : "",
-        tone: toneSelect ? toneSelect.value : "",
-        length: lengthSelect ? lengthSelect.value : "",
-        extra: extraInput ? extraInput.value : "",
         preset: presetSelect ? presetSelect.value : "",
-        promptMode: promptModeSelect ? promptModeSelect.value : "standard",
-        toc: tocCheckbox ? tocCheckbox.checked : false,
         anonymousMode: !!(anonymousModeCheckbox && anonymousModeCheckbox.checked),
         expertMode: !!(expertToggle && expertToggle.checked),
         temperature: temperatureInput ? Number(temperatureInput.value) : 0.7,
         maxTokens: maxTokensInput ? Number(maxTokensInput.value) : 2048,
-        topP: topPInput ? Number(topPInput.value) : 1,
-        frequencyPenalty: frequencyPenaltyInput ? Number(frequencyPenaltyInput.value) : 0
+        topP: topPInput ? Number(topPInput.value) : 1
       },
       history: historyCache
     };
@@ -1343,16 +1337,7 @@ document.addEventListener("DOMContentLoaded", () => {
       applyAnonymousMode(prefs.anonymousMode);
     }
 
-    if (languageSelect) {
-      const resolvedLanguage = getLanguageConfig(prefs.language).code;
-      languageSelect.value = resolvedLanguage;
-    }
-    if (toneSelect && prefs.tone) toneSelect.value = prefs.tone;
-    if (lengthSelect && prefs.length) lengthSelect.value = prefs.length;
-    if (extraInput && typeof prefs.extra === "string") extraInput.value = prefs.extra;
     if (presetSelect && prefs.preset !== undefined) presetSelect.value = prefs.preset;
-    if (promptModeSelect && prefs.promptMode) promptModeSelect.value = prefs.promptMode;
-    if (tocCheckbox && typeof prefs.toc === "boolean") tocCheckbox.checked = prefs.toc;
     if (expertToggle && typeof prefs.expertMode === "boolean") {
       expertToggle.checked = prefs.expertMode;
       setExpertMode(prefs.expertMode);
@@ -1360,9 +1345,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (temperatureInput && prefs.temperature !== undefined) temperatureInput.value = prefs.temperature;
     if (maxTokensInput && prefs.maxTokens !== undefined) maxTokensInput.value = prefs.maxTokens;
     if (topPInput && prefs.topP !== undefined) topPInput.value = prefs.topP;
-    if (frequencyPenaltyInput && prefs.frequencyPenalty !== undefined) {
-      frequencyPenaltyInput.value = prefs.frequencyPenalty;
-    }
 
     if (prefs.theme) {
       applyTheme(prefs.theme);
@@ -1621,7 +1603,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const temperature = expertToggle && expertToggle.checked ? Number(temperatureInput.value) || 0.7 : 0.5;
     const maxTokens = expertToggle && expertToggle.checked ? Number(maxTokensInput.value) || 512 : 512;
     const top_p = expertToggle && expertToggle.checked ? Number(topPInput.value) || 1 : 1;
-    const frequency_penalty = expertToggle && expertToggle.checked ? Number(frequencyPenaltyInput.value) || 0 : 0;
+    const frequency_penalty =
+      expertToggle && expertToggle.checked && frequencyPenaltyInput
+        ? Number(frequencyPenaltyInput.value) || 0
+        : 0;
 
     Object.assign(body, { temperature, max_tokens: maxTokens, top_p, frequency_penalty });
 
@@ -1726,7 +1711,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const temperature = expertToggle && expertToggle.checked ? Number(temperatureInput.value) || 0.7 : 0.7;
       const maxTokens = expertToggle && expertToggle.checked ? Number(maxTokensInput.value) || undefined : undefined;
       const top_p = expertToggle && expertToggle.checked ? Number(topPInput.value) || 1 : 1;
-      const frequency_penalty = expertToggle && expertToggle.checked ? Number(frequencyPenaltyInput.value) || 0 : 0;
+      const frequency_penalty =
+        expertToggle && expertToggle.checked && frequencyPenaltyInput
+          ? Number(frequencyPenaltyInput.value) || 0
+          : 0;
 
       const body = {
         model,
@@ -1959,7 +1947,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const temperature = expertToggle && expertToggle.checked ? Number(temperatureInput.value) || 0.7 : 0.7;
     const maxTokens = expertToggle && expertToggle.checked ? Number(maxTokensInput.value) || 512 : 512;
     const top_p = expertToggle && expertToggle.checked ? Number(topPInput.value) || 1 : 1;
-    const frequency_penalty = expertToggle && expertToggle.checked ? Number(frequencyPenaltyInput.value) || 0 : 0;
+    const frequency_penalty =
+      expertToggle && expertToggle.checked && frequencyPenaltyInput
+        ? Number(frequencyPenaltyInput.value) || 0
+        : 0;
 
     const prompt = changeTone
       ? `Rewrite the following excerpt to match this tone: ${tone}. Keep the meaning and Markdown structure. Excerpt: ${selected}`

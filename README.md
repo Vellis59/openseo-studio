@@ -5,11 +5,11 @@ OpenSEO Studio is a **fully client-side, static SEO writing tool** powered by AI
 No backend. No database. Bring Your Own API Key (BYOK).  
 Your API key stays in your browser — you keep full control.
 
-This repository contains **OpenSEO Studio v0.9.0**, including split-screen editing, light/dark theme controls, offline-ready PWA support, refreshed mobile UX, new multilingual SEO output, and client-side persistence & security controls.
+This repository contains **OpenSEO Studio v0.9.2**, including split-screen editing, light/dark theme controls, offline-ready PWA support, refreshed mobile UX, multilingual SEO output, and client-side persistence & security controls.
 
 ---
 
-## Features (v0.9.0)
+## Features (v0.9.2)
 
 ### 🧩 Core Functionality
 - 100% client-side, static HTML/CSS/JS
@@ -29,11 +29,10 @@ When you enter your OpenRouter API key, the app automatically fetches all models
 
 (The model list is dynamically loaded — it may differ for each user)
 
-### ✨ New in v0.9.0
-- **Curated multilingual support** with a centralized language configuration covering 20+ locales, extended dropdown, and prompt safeguards that keep output fully in the chosen language.
-- **Modular prompt builder** with Minimal, Standard, and Strict SEO modes, so you can pick the right balance between speed and structure.
-- **Strict SEO mode** that enforces table of contents, FAQ, callouts, and metadata instructions for long-form optimization.
-- **Prompt settings UI** refreshed to expose the new modes while keeping existing presets and TOC controls.
+### ✨ New in v0.9.2
+- **Settings cleanup** that keeps only global, durable preferences in the Settings panel.
+- **Advanced parameters grouped** under a collapsed Expert mode section to reduce visual density.
+- **Clearer maintenance tools** for export/import and local storage reset.
 
 > Note: The previous cover image generator is temporarily disabled while we revisit the feature.
 
@@ -46,7 +45,7 @@ When you enter your OpenRouter API key, the app automatically fetches all models
 3. Select an AI model  
 4. Enter a main keyword  
 5. Configure tone, length, language  
-6. (Optional) Select a preset or enable TOC  
+6. (Optional) Select a preset  
 7. Click **Generate article**  
 8. Copy the Markdown output to your CMS or editor  
 

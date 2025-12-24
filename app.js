@@ -234,6 +234,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Keep API key header-safe by stripping non ISO-8859-1 characters.
+  function sanitizeApiKey(value) {
+    if (!value) return "";
+    return value
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+      .replace(/[^\x20-\x7E]/g, "")
+      .trim();
+  }
+
   function xorEncrypt(text, password) {
     if (!password) return base64Encode(text);
     const cipher = text
@@ -480,7 +489,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (apiKeyInput) {
     apiKeyInput.addEventListener("change", () => {
-      const key = apiKeyInput.value.trim();
+      const key = sanitizeApiKey(apiKeyInput.value);
+      apiKeyInput.value = key;
       if (!key) {
         clearModelOptions();
         removeItem(STORAGE_KEY_API);
@@ -493,7 +503,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (rememberKeyCheckbox) {
     rememberKeyCheckbox.addEventListener("change", () => {
-      const key = apiKeyInput.value.trim();
+      const key = sanitizeApiKey(apiKeyInput.value);
+      apiKeyInput.value = key;
       if (!key) {
         removeItem(STORAGE_KEY_API);
         return;
@@ -1024,7 +1035,7 @@ document.addEventListener("DOMContentLoaded", () => {
     planEditor.addEventListener("input", updateEstimates);
   }
 
-  [modelSelect, temperatureInput, maxTokensInput, topPInput, frequencyPenaltyInput].forEach((el) => {
+  [modelSelect, temperatureInput, maxTokensInput, topPInput].forEach((el) => {
     if (!el) return;
     el.addEventListener("change", updateEstimates);
   });
@@ -1082,6 +1093,14 @@ document.addEventListener("DOMContentLoaded", () => {
   async function fetchAndPopulateModels(apiKey) {
     if (!modelSelect) return;
 
+    const sanitizedKey = sanitizeApiKey(apiKey);
+    if (!sanitizedKey) {
+      statusEl.textContent = "Please provide a valid OpenRouter API key.";
+      statusEl.classList.add("error");
+      clearModelOptions();
+      return;
+    }
+
     modelSelect.disabled = true;
     statusEl.classList.remove("error");
     statusEl.classList.add("loading");
@@ -1090,7 +1109,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const response = await fetch(OPENROUTER_MODELS_URL, {
         headers: {
-          Authorization: `Bearer ${apiKey}`
+          Authorization: `Bearer ${sanitizedKey}`
         }
       });
 
@@ -1311,24 +1330,18 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ---------- Config import/export ---------- */
 
   function buildConfigSnapshot() {
+    // v0.9.2 settings export focuses on global preferences only.
     return {
-      version: "0.8.0",
+      version: "0.9.2",
       preferences: {
         theme: resolveTheme(),
         model: modelSelect ? modelSelect.value : "",
-        language: languageSelect ? languageSelect.value : "",
-        tone: toneSelect ? toneSelect.value : "",
-        length: lengthSelect ? lengthSelect.value : "",
-        extra: extraInput ? extraInput.value : "",
         preset: presetSelect ? presetSelect.value : "",
-        promptMode: promptModeSelect ? promptModeSelect.value : "standard",
-        toc: tocCheckbox ? tocCheckbox.checked : false,
         anonymousMode: !!(anonymousModeCheckbox && anonymousModeCheckbox.checked),
         expertMode: !!(expertToggle && expertToggle.checked),
         temperature: temperatureInput ? Number(temperatureInput.value) : 0.7,
         maxTokens: maxTokensInput ? Number(maxTokensInput.value) : 2048,
-        topP: topPInput ? Number(topPInput.value) : 1,
-        frequencyPenalty: frequencyPenaltyInput ? Number(frequencyPenaltyInput.value) : 0
+        topP: topPInput ? Number(topPInput.value) : 1
       },
       history: historyCache
     };
@@ -1343,16 +1356,7 @@ document.addEventListener("DOMContentLoaded", () => {
       applyAnonymousMode(prefs.anonymousMode);
     }
 
-    if (languageSelect) {
-      const resolvedLanguage = getLanguageConfig(prefs.language).code;
-      languageSelect.value = resolvedLanguage;
-    }
-    if (toneSelect && prefs.tone) toneSelect.value = prefs.tone;
-    if (lengthSelect && prefs.length) lengthSelect.value = prefs.length;
-    if (extraInput && typeof prefs.extra === "string") extraInput.value = prefs.extra;
     if (presetSelect && prefs.preset !== undefined) presetSelect.value = prefs.preset;
-    if (promptModeSelect && prefs.promptMode) promptModeSelect.value = prefs.promptMode;
-    if (tocCheckbox && typeof prefs.toc === "boolean") tocCheckbox.checked = prefs.toc;
     if (expertToggle && typeof prefs.expertMode === "boolean") {
       expertToggle.checked = prefs.expertMode;
       setExpertMode(prefs.expertMode);
@@ -1360,9 +1364,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (temperatureInput && prefs.temperature !== undefined) temperatureInput.value = prefs.temperature;
     if (maxTokensInput && prefs.maxTokens !== undefined) maxTokensInput.value = prefs.maxTokens;
     if (topPInput && prefs.topP !== undefined) topPInput.value = prefs.topP;
-    if (frequencyPenaltyInput && prefs.frequencyPenalty !== undefined) {
-      frequencyPenaltyInput.value = prefs.frequencyPenalty;
-    }
 
     if (prefs.theme) {
       applyTheme(prefs.theme);
@@ -1525,10 +1526,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function callChat(body, apiKey) {
+    const sanitizedKey = sanitizeApiKey(apiKey);
+    if (!sanitizedKey) {
+      throw new Error("Invalid API key.");
+    }
     const response = await fetch(OPENROUTER_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${sanitizedKey}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(body)
@@ -1578,7 +1583,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function generatePlan({ silent } = {}) {
-    const apiKey = apiKeyInput.value.trim();
+    const apiKey = sanitizeApiKey(apiKeyInput.value);
+    apiKeyInput.value = apiKey;
     const model = modelSelect.value;
     if (!apiKey || !model) {
       if (!silent) {
@@ -1621,7 +1627,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const temperature = expertToggle && expertToggle.checked ? Number(temperatureInput.value) || 0.7 : 0.5;
     const maxTokens = expertToggle && expertToggle.checked ? Number(maxTokensInput.value) || 512 : 512;
     const top_p = expertToggle && expertToggle.checked ? Number(topPInput.value) || 1 : 1;
-    const frequency_penalty = expertToggle && expertToggle.checked ? Number(frequencyPenaltyInput.value) || 0 : 0;
+    const frequency_penalty =
+      expertToggle && expertToggle.checked && frequencyPenaltyInput
+        ? Number(frequencyPenaltyInput.value) || 0
+        : 0;
 
     Object.assign(body, { temperature, max_tokens: maxTokens, top_p, frequency_penalty });
 
@@ -1665,7 +1674,8 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.textContent = "";
       statusEl.classList.remove("error", "loading");
 
-      const apiKey = apiKeyInput.value.trim();
+      const apiKey = sanitizeApiKey(apiKeyInput.value);
+      apiKeyInput.value = apiKey;
       if (!apiKey) {
         statusEl.textContent = "Please provide your OpenRouter API key in the settings menu.";
         statusEl.classList.add("error");
@@ -1726,7 +1736,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const temperature = expertToggle && expertToggle.checked ? Number(temperatureInput.value) || 0.7 : 0.7;
       const maxTokens = expertToggle && expertToggle.checked ? Number(maxTokensInput.value) || undefined : undefined;
       const top_p = expertToggle && expertToggle.checked ? Number(topPInput.value) || 1 : 1;
-      const frequency_penalty = expertToggle && expertToggle.checked ? Number(frequencyPenaltyInput.value) || 0 : 0;
+      const frequency_penalty =
+        expertToggle && expertToggle.checked && frequencyPenaltyInput
+          ? Number(frequencyPenaltyInput.value) || 0
+          : 0;
 
       const body = {
         model,
@@ -1848,7 +1861,8 @@ document.addEventListener("DOMContentLoaded", () => {
     statusEl.textContent = "";
     statusEl.classList.remove("error", "loading");
 
-    const apiKey = apiKeyInput.value.trim();
+    const apiKey = sanitizeApiKey(apiKeyInput.value);
+    apiKeyInput.value = apiKey;
     if (!apiKey) {
       statusEl.textContent = "Please provide your OpenRouter API key in the settings menu.";
       statusEl.classList.add("error");
@@ -1931,7 +1945,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function regenerateSelection({ changeTone = false } = {}) {
     if (!outputArea) return;
-    const apiKey = apiKeyInput.value.trim();
+    const apiKey = sanitizeApiKey(apiKeyInput.value);
+    apiKeyInput.value = apiKey;
     if (!apiKey) {
       statusEl.textContent = "API key required to regenerate.";
       statusEl.classList.add("error");
@@ -1959,7 +1974,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const temperature = expertToggle && expertToggle.checked ? Number(temperatureInput.value) || 0.7 : 0.7;
     const maxTokens = expertToggle && expertToggle.checked ? Number(maxTokensInput.value) || 512 : 512;
     const top_p = expertToggle && expertToggle.checked ? Number(topPInput.value) || 1 : 1;
-    const frequency_penalty = expertToggle && expertToggle.checked ? Number(frequencyPenaltyInput.value) || 0 : 0;
+    const frequency_penalty =
+      expertToggle && expertToggle.checked && frequencyPenaltyInput
+        ? Number(frequencyPenaltyInput.value) || 0
+        : 0;
 
     const prompt = changeTone
       ? `Rewrite the following excerpt to match this tone: ${tone}. Keep the meaning and Markdown structure. Excerpt: ${selected}`

@@ -122,6 +122,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const exportModalTitle = document.getElementById("exportModalTitle");
   const exportModalSubtitle = document.getElementById("exportModalSubtitle");
   const exportModalBody = document.getElementById("exportModalBody");
+  const aboutToggle = document.getElementById("aboutToggle");
+  const aboutModal = document.getElementById("aboutModal");
+  const closeAboutModalBtn = document.getElementById("closeAboutModalBtn");
 
   const presetSelect = document.getElementById("presetSelect");
   const promptModeSelect = document.getElementById("promptMode");
@@ -810,6 +813,7 @@ document.addEventListener("DOMContentLoaded", () => {
       closeExportMenu();
       closeExportModal();
       closeHistoryOverlay();
+      closeAboutModal();
     }
   });
 
@@ -1508,6 +1512,39 @@ document.addEventListener("DOMContentLoaded", () => {
     exportModal.addEventListener("click", (event) => {
       if (event.target === exportModal) {
         closeExportModal();
+      }
+    });
+  }
+
+  /* ---------- About modal ---------- */
+
+  function openAboutModal() {
+    if (!aboutModal) return;
+    aboutModal.classList.add("open");
+    aboutModal.setAttribute("aria-hidden", "false");
+    if (closeAboutModalBtn) {
+      closeAboutModalBtn.focus();
+    }
+  }
+
+  function closeAboutModal() {
+    if (!aboutModal) return;
+    aboutModal.classList.remove("open");
+    aboutModal.setAttribute("aria-hidden", "true");
+  }
+
+  if (aboutToggle) {
+    aboutToggle.addEventListener("click", openAboutModal);
+  }
+
+  if (closeAboutModalBtn) {
+    closeAboutModalBtn.addEventListener("click", closeAboutModal);
+  }
+
+  if (aboutModal) {
+    aboutModal.addEventListener("click", (event) => {
+      if (event.target === aboutModal) {
+        closeAboutModal();
       }
     });
   }

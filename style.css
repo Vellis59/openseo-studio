@@ -94,6 +94,12 @@ body {
   gap: 0.75rem;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .logo-circle {
   width: 32px;
   height: 32px;
@@ -140,6 +146,24 @@ body {
 
 .menu-toggle:hover {
   background: color-mix(in srgb, var(--bg-card) 96%, transparent);
+}
+
+.about-link {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.about-link:hover,
+.about-link:focus-visible {
+  color: var(--text-main);
+  border-color: color-mix(in srgb, var(--border-subtle) 80%, transparent);
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+  outline: none;
 }
 
 .menu-panel {
@@ -952,6 +976,26 @@ body {
   color: var(--text-main);
   font-size: 0.9rem;
   line-height: 1.5;
+}
+
+.modal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.modal-links a {
+  color: var(--text-main);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--text-main) 40%, transparent);
+}
+
+.modal-links a:hover,
+.modal-links a:focus-visible {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  outline: none;
 }
 
 .history-header {

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>OpenSEO Studio v0.9.4 – AI-powered SEO article generator</title>
+  <title>OpenSEO Studio v1.0.0 – AI-powered SEO article generator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="OpenSEO Studio is a fully client-side SEO article generator powered by OpenRouter. Bring your own API key, keep full control, and generate clean Markdown content.">
   <meta name="color-scheme" content="dark light">
@@ -22,12 +22,17 @@
       </div>
     </div>
 
-    <button class="menu-toggle" id="themeToggle" aria-label="Toggle color theme">
-      🌗
-    </button>
-    <button class="menu-toggle" id="menuToggle" aria-label="Open settings">
-      ☰
-    </button>
+    <div class="topbar-actions">
+      <button class="about-link" id="aboutToggle" type="button">
+        About
+      </button>
+      <button class="menu-toggle" id="themeToggle" aria-label="Toggle color theme">
+        🌗
+      </button>
+      <button class="menu-toggle" id="menuToggle" aria-label="Open settings">
+        ☰
+      </button>
+    </div>
 
     <div class="menu-panel" id="menuPanel" aria-hidden="true">
       <h2 class="menu-title">Settings</h2>
@@ -468,7 +473,7 @@
 
   <footer class="footer">
     <p class="footer-text">
-      OpenSEO Studio v0.9.4 – fully static, MIT-licensed, BYOK SEO writing tool.
+      OpenSEO Studio v1.0.0 – fully static, MIT-licensed, BYOK SEO writing tool.
     </p>
   </footer>
 
@@ -512,6 +517,56 @@
       <button class="icon-btn" id="closeExportModalBtn" aria-label="Close export panel">✕</button>
     </div>
     <div class="modal-body" id="exportModalBody"></div>
+  </div>
+</aside>
+
+
+<aside class="modal-overlay" id="aboutModal" aria-hidden="true">
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="aboutModalTitle">
+    <div class="modal-header">
+      <div>
+        <p class="panel-title" id="aboutModalTitle">OpenSEO Studio</p>
+        <p class="panel-sub">v1.0.0</p>
+      </div>
+      <button class="icon-btn" id="closeAboutModalBtn" aria-label="Close about panel">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="small-note">
+        A fully static SEO writer that runs in your browser. Bring your own OpenRouter key and ship clean Markdown.
+      </p>
+      <div>
+        <p class="panel-sub">What it is</p>
+        <ul class="modal-list">
+          <li>Fully static SEO writer</li>
+          <li>BYOK via OpenRouter</li>
+          <li>Runs in your browser</li>
+          <li>Produces clean Markdown</li>
+        </ul>
+      </div>
+      <div>
+        <p class="panel-sub">What it is not</p>
+        <ul class="modal-list">
+          <li>No accounts</li>
+          <li>No database</li>
+          <li>No tracking</li>
+          <li>No server-side storage</li>
+        </ul>
+      </div>
+      <div>
+        <p class="panel-sub">Principles</p>
+        <ul class="modal-list">
+          <li>Static</li>
+          <li>BYOK</li>
+          <li>No backend</li>
+          <li>No tracking</li>
+          <li>Markdown only</li>
+        </ul>
+      </div>
+      <div class="modal-links">
+        <a href="https://github.com/Vellis59/openseo-studio" target="_blank" rel="noreferrer noopener">GitHub</a>
+        <a href="https://github.com/Vellis59/openseo-studio/issues" target="_blank" rel="noreferrer noopener">Issues</a>
+      </div>
+    </div>
   </div>
 </aside>
 

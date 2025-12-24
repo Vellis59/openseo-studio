@@ -478,13 +478,28 @@
   </footer>
 
   <script src="app.js"></script>
-  <div id="onboarding" class="onboarding hidden">
-  <div class="onboarding-content">
-    <h2>Welcome to OpenSEO Studio</h2>
-    <p>You need to configure your API key before generating articles.</p>
-    <button id="onboardingClose" class="btn-primary">Got it</button>
-  </div>
-</div>
+  <aside class="modal-overlay" id="welcomeOverlay" aria-hidden="true">
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle" aria-describedby="welcomeDescription">
+      <div class="modal-header">
+        <div>
+          <p class="panel-title" id="welcomeTitle">Welcome to OpenSEO Studio v1.0.0</p>
+          <p class="panel-sub">Your 3-step setup</p>
+        </div>
+      </div>
+      <div class="modal-body">
+        <ol class="modal-list">
+          <li>Paste your OpenRouter API key (BYOK).</li>
+          <li>Pick a default model.</li>
+          <li>Generate and export clean Markdown.</li>
+        </ol>
+        <p class="small-note" id="welcomeDescription">Runs in your browser. No backend. No tracking.</p>
+        <div class="modal-actions">
+          <button type="button" class="btn-primary" id="welcomeGetStarted">Get started</button>
+          <button type="button" class="btn-ghost" id="welcomeLearnMore">Learn more</button>
+        </div>
+      </div>
+    </div>
+  </aside>
 
 <aside class="history-overlay" id="historyOverlay" aria-hidden="true">
   <div class="history-panel">

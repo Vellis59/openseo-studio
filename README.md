@@ -33,6 +33,7 @@ When you enter your OpenRouter API key, the app automatically fetches all models
 - **Export entry point** next to Copy Markdown (Download .md + CMS placeholders).
 - **Download .md** export with readable, dated filenames.
 - **Ghost + WordPress placeholders** with required fields listed for future integration.
+- **UI**: fix light mode contrast
 
 ### ✅ Previously in v0.9.3
 - **Contextual generation options panel** for prompt mode and TOC toggles, scoped to generation only.
@@ -80,3 +81,4 @@ Deploy the contents of this repository to **Cloudflare Pages** (or any static ho
 
 ## License
 Released under the MIT License. See the LICENSE file for details.
+

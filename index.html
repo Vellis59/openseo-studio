@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>OpenSEO Studio v0.9.2 – AI-powered SEO article generator</title>
+  <title>OpenSEO Studio v0.9.3 – AI-powered SEO article generator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="OpenSEO Studio is a fully client-side SEO article generator powered by OpenRouter. Bring your own API key, keep full control, and generate clean Markdown content.">
   <meta name="color-scheme" content="dark light">
@@ -248,7 +248,8 @@
           placeholder="e.g. include a table of contents, no cliché intro, no emojis..."
         >
 
-        <div class="actions-row">
+        <div class="generation-controls">
+          <div class="actions-row">
           <button type="button" id="planBtn" class="btn-secondary">Generate plan</button>
           <button type="button" id="generateBtn" class="btn-primary">
             Generate article
@@ -265,6 +266,25 @@
           <button type="button" id="openHistoryBtn" class="btn-ghost">
             History
           </button>
+          <button type="button" id="generationOptionsBtn" class="btn-ghost generation-options-toggle" aria-expanded="false">
+            Generation options
+          </button>
+          </div>
+
+          <div class="generation-options-panel" id="generationOptionsPanel" aria-hidden="true" role="dialog" aria-label="Generation options">
+            <p class="panel-title">Generation options</p>
+            <p class="panel-sub">Applied only to the current generation request.</p>
+            <label class="field-label" for="promptMode">Prompt mode</label>
+            <select id="promptMode" class="field-input">
+              <option value="standard" selected>Standard (balanced)</option>
+              <option value="minimal">Minimal (lean guidelines)</option>
+              <option value="strict-seo">Strict SEO (extended structure)</option>
+            </select>
+            <label class="checkbox-row">
+              <input type="checkbox" id="tocCheckbox">
+              <span>Add Markdown Table of Contents</span>
+            </label>
+          </div>
         </div>
 
         <p id="status" class="status-text"></p>
@@ -432,7 +452,7 @@
 
   <footer class="footer">
     <p class="footer-text">
-      OpenSEO Studio v0.9.2 – fully static, MIT-licensed, BYOK SEO writing tool.
+      OpenSEO Studio v0.9.3 – fully static, MIT-licensed, BYOK SEO writing tool.
     </p>
   </footer>
 

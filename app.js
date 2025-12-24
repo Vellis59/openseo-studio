@@ -115,6 +115,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const clearBtn = document.getElementById("clearBtn");
   const statusEl = document.getElementById("status");
   const outputArea = document.getElementById("output");
+  const exportToggleBtn = document.getElementById("exportToggleBtn");
+  const exportMenu = document.getElementById("exportMenu");
+  const exportModal = document.getElementById("exportModal");
+  const closeExportModalBtn = document.getElementById("closeExportModalBtn");
+  const exportModalTitle = document.getElementById("exportModalTitle");
+  const exportModalSubtitle = document.getElementById("exportModalSubtitle");
+  const exportModalBody = document.getElementById("exportModalBody");
 
   const presetSelect = document.getElementById("presetSelect");
   const promptModeSelect = document.getElementById("promptMode");
@@ -800,6 +807,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeGenerationOptions();
+      closeExportMenu();
+      closeExportModal();
+      closeHistoryOverlay();
     }
   });
 
@@ -1376,6 +1386,138 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.classList.add("error");
     }
   }
+
+  /* ---------- Export Markdown ---------- */
+
+  function slugifyKeyword(value) {
+    const base = (value || "").trim().toLowerCase();
+    if (!base) return "article";
+    const normalized = base
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "");
+    const slug = normalized
+      .replace(/[^a-z0-9\\s-]/g, " ")
+      .trim()
+      .replace(/\\s+/g, "-")
+      .replace(/-+/g, "-");
+    return slug || "article";
+  }
+
+  function getMarkdownFilename() {
+    const keyword = keywordInput ? keywordInput.value : "";
+    const slug = slugifyKeyword(keyword);
+    const today = new Date().toISOString().slice(0, 10);
+    return `${slug}-${today}.md`;
+  }
+
+  function downloadMarkdown() {
+    if (!outputArea) return;
+    const text = outputArea.value;
+    statusEl.classList.remove("error", "loading");
+    if (!text || !text.trim()) {
+      statusEl.textContent = "Nothing to export yet. Generate content first.";
+      statusEl.classList.add("error");
+      return;
+    }
+    const filename = getMarkdownFilename();
+    const blob = new Blob([text], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    statusEl.textContent = `Downloaded ${filename}.`;
+  }
+
+  function openExportMenu() {
+    if (!exportMenu || !exportToggleBtn) return;
+    exportMenu.classList.add("open");
+    exportMenu.setAttribute("aria-hidden", "false");
+    exportToggleBtn.setAttribute("aria-expanded", "true");
+  }
+
+  function closeExportMenu() {
+    if (!exportMenu || !exportToggleBtn) return;
+    exportMenu.classList.remove("open");
+    exportMenu.setAttribute("aria-hidden", "true");
+    exportToggleBtn.setAttribute("aria-expanded", "false");
+  }
+
+  function toggleExportMenu() {
+    if (!exportMenu || !exportToggleBtn) return;
+    if (exportMenu.classList.contains("open")) {
+      closeExportMenu();
+    } else {
+      openExportMenu();
+    }
+  }
+
+  function openExportModal(platform) {
+    if (!exportModal || !exportModalTitle || !exportModalSubtitle || !exportModalBody) return;
+    const isGhost = platform === "ghost";
+    exportModalTitle.textContent = isGhost ? "Send to Ghost" : "Send to WordPress";
+    exportModalSubtitle.textContent = "Coming soon";
+    const fields = isGhost
+      ? ["Ghost Admin API URL", "Ghost Admin API key"]
+      : ["Site URL", "Application password"];
+    exportModalBody.innerHTML = `
+      <p class="small-note">Required fields for future integration:</p>
+      <ul class="modal-list">
+        ${fields.map((field) => `<li>${field}</li>`).join("")}
+      </ul>
+    `;
+    exportModal.classList.add("open");
+    exportModal.setAttribute("aria-hidden", "false");
+  }
+
+  function closeExportModal() {
+    if (!exportModal) return;
+    exportModal.classList.remove("open");
+    exportModal.setAttribute("aria-hidden", "true");
+  }
+
+  if (exportToggleBtn) {
+    exportToggleBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleExportMenu();
+    });
+  }
+
+  if (exportMenu) {
+    exportMenu.addEventListener("click", (event) => {
+      const item = event.target.closest(".export-menu-item");
+      if (!item) return;
+      const action = item.dataset.exportAction;
+      closeExportMenu();
+      if (action === "download") {
+        downloadMarkdown();
+      } else if (action === "ghost" || action === "wordpress") {
+        openExportModal(action);
+      }
+    });
+  }
+
+  if (closeExportModalBtn) {
+    closeExportModalBtn.addEventListener("click", closeExportModal);
+  }
+
+  if (exportModal) {
+    exportModal.addEventListener("click", (event) => {
+      if (event.target === exportModal) {
+        closeExportModal();
+      }
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    if (!exportMenu || !exportMenu.classList.contains("open")) return;
+    if (exportMenu.contains(event.target)) return;
+    if (exportToggleBtn && exportToggleBtn.contains(event.target)) return;
+    closeExportMenu();
+  });
 
   /* ---------- Clear output ---------- */
 

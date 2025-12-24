@@ -234,6 +234,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Keep API key header-safe by stripping non ISO-8859-1 characters.
+  function sanitizeApiKey(value) {
+    if (!value) return "";
+    return value
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+      .replace(/[^\x20-\x7E]/g, "")
+      .trim();
+  }
+
   function xorEncrypt(text, password) {
     if (!password) return base64Encode(text);
     const cipher = text
@@ -480,7 +489,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (apiKeyInput) {
     apiKeyInput.addEventListener("change", () => {
-      const key = apiKeyInput.value.trim();
+      const key = sanitizeApiKey(apiKeyInput.value);
+      apiKeyInput.value = key;
       if (!key) {
         clearModelOptions();
         removeItem(STORAGE_KEY_API);
@@ -493,7 +503,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (rememberKeyCheckbox) {
     rememberKeyCheckbox.addEventListener("change", () => {
-      const key = apiKeyInput.value.trim();
+      const key = sanitizeApiKey(apiKeyInput.value);
+      apiKeyInput.value = key;
       if (!key) {
         removeItem(STORAGE_KEY_API);
         return;
@@ -1082,6 +1093,14 @@ document.addEventListener("DOMContentLoaded", () => {
   async function fetchAndPopulateModels(apiKey) {
     if (!modelSelect) return;
 
+    const sanitizedKey = sanitizeApiKey(apiKey);
+    if (!sanitizedKey) {
+      statusEl.textContent = "Please provide a valid OpenRouter API key.";
+      statusEl.classList.add("error");
+      clearModelOptions();
+      return;
+    }
+
     modelSelect.disabled = true;
     statusEl.classList.remove("error");
     statusEl.classList.add("loading");
@@ -1090,7 +1109,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const response = await fetch(OPENROUTER_MODELS_URL, {
         headers: {
-          Authorization: `Bearer ${apiKey}`
+          Authorization: `Bearer ${sanitizedKey}`
         }
       });
 
@@ -1507,10 +1526,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function callChat(body, apiKey) {
+    const sanitizedKey = sanitizeApiKey(apiKey);
+    if (!sanitizedKey) {
+      throw new Error("Invalid API key.");
+    }
     const response = await fetch(OPENROUTER_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${sanitizedKey}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(body)
@@ -1560,7 +1583,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function generatePlan({ silent } = {}) {
-    const apiKey = apiKeyInput.value.trim();
+    const apiKey = sanitizeApiKey(apiKeyInput.value);
+    apiKeyInput.value = apiKey;
     const model = modelSelect.value;
     if (!apiKey || !model) {
       if (!silent) {
@@ -1650,7 +1674,8 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.textContent = "";
       statusEl.classList.remove("error", "loading");
 
-      const apiKey = apiKeyInput.value.trim();
+      const apiKey = sanitizeApiKey(apiKeyInput.value);
+      apiKeyInput.value = apiKey;
       if (!apiKey) {
         statusEl.textContent = "Please provide your OpenRouter API key in the settings menu.";
         statusEl.classList.add("error");
@@ -1836,7 +1861,8 @@ document.addEventListener("DOMContentLoaded", () => {
     statusEl.textContent = "";
     statusEl.classList.remove("error", "loading");
 
-    const apiKey = apiKeyInput.value.trim();
+    const apiKey = sanitizeApiKey(apiKeyInput.value);
+    apiKeyInput.value = apiKey;
     if (!apiKey) {
       statusEl.textContent = "Please provide your OpenRouter API key in the settings menu.";
       statusEl.classList.add("error");
@@ -1919,7 +1945,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function regenerateSelection({ changeTone = false } = {}) {
     if (!outputArea) return;
-    const apiKey = apiKeyInput.value.trim();
+    const apiKey = sanitizeApiKey(apiKeyInput.value);
+    apiKeyInput.value = apiKey;
     if (!apiKey) {
       statusEl.textContent = "API key required to regenerate.";
       statusEl.classList.add("error");

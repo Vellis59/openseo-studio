@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>OpenSEO Studio v0.9.3 – AI-powered SEO article generator</title>
+  <title>OpenSEO Studio v0.9.4 – AI-powered SEO article generator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="OpenSEO Studio is a fully client-side SEO article generator powered by OpenRouter. Bring your own API key, keep full control, and generate clean Markdown content.">
   <meta name="color-scheme" content="dark light">
@@ -260,6 +260,22 @@
           <button type="button" id="copyBtn" class="btn-secondary">
             Copy Markdown
           </button>
+          <div class="export-menu">
+            <button type="button" id="exportToggleBtn" class="btn-secondary" aria-expanded="false" aria-haspopup="true">
+              Export ▾
+            </button>
+            <div class="export-menu-panel" id="exportMenu" role="menu" aria-hidden="true">
+              <button type="button" class="export-menu-item" data-export-action="download" role="menuitem">
+                Download .md
+              </button>
+              <button type="button" class="export-menu-item" data-export-action="ghost" role="menuitem">
+                Send to Ghost…
+              </button>
+              <button type="button" class="export-menu-item" data-export-action="wordpress" role="menuitem">
+                Send to WordPress…
+              </button>
+            </div>
+          </div>
           <button type="button" id="clearBtn" class="btn-ghost">
             Clear output
           </button>
@@ -452,7 +468,7 @@
 
   <footer class="footer">
     <p class="footer-text">
-      OpenSEO Studio v0.9.3 – fully static, MIT-licensed, BYOK SEO writing tool.
+      OpenSEO Studio v0.9.4 – fully static, MIT-licensed, BYOK SEO writing tool.
     </p>
   </footer>
 
@@ -483,6 +499,19 @@
     >
     <div class="history-list" id="historyList" role="list" aria-live="polite"></div>
     <p class="small-note">Click an item to reload it in the editor.</p>
+  </div>
+</aside>
+
+<aside class="modal-overlay" id="exportModal" aria-hidden="true">
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
+    <div class="modal-header">
+      <div>
+        <p class="panel-title" id="exportModalTitle">Export</p>
+        <p class="panel-sub" id="exportModalSubtitle">Coming soon</p>
+      </div>
+      <button class="icon-btn" id="closeExportModalBtn" aria-label="Close export panel">✕</button>
+    </div>
+    <div class="modal-body" id="exportModalBody"></div>
   </div>
 </aside>
 

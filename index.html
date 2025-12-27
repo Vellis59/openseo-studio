@@ -262,6 +262,9 @@
           <button type="button" id="generateMetadataBtn" class="btn-secondary">
             Generate SEO metadata
           </button>
+          <button type="button" id="generateImagePromptsBtn" class="btn-secondary">
+            Generate image prompts
+          </button>
           <button type="button" id="copyBtn" class="btn-secondary">
             Copy Markdown
           </button>
@@ -304,6 +307,30 @@
             <label class="checkbox-row">
               <input type="checkbox" id="tocCheckbox">
               <span>Add Markdown Table of Contents</span>
+            </label>
+            <p class="panel-sub">Image prompts</p>
+            <label class="field-label" for="imageStyleSelect">Image style preset</label>
+            <select id="imageStyleSelect" class="field-input">
+              <option value="modern-illustration" selected>Modern illustration (flat)</option>
+              <option value="isometric-tech">Isometric tech</option>
+              <option value="photorealistic">Photorealistic</option>
+              <option value="minimalist-diagram">Minimalist diagram</option>
+              <option value="3d-render">3D render (product-like)</option>
+            </select>
+            <label class="field-label" for="imageCountSelect">Section images count</label>
+            <select id="imageCountSelect" class="field-input">
+              <option value="0">0</option>
+              <option value="2" selected>2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+            <label class="checkbox-row">
+              <input type="checkbox" id="includeDiagramPrompt" checked>
+              <span>Include diagram / infographic prompt</span>
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" id="includeNegativePrompt">
+              <span>Include negative prompt (Stable Diffusion)</span>
             </label>
           </div>
         </div>

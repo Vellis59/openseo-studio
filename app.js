@@ -219,6 +219,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let encryptedKeyPayload = null;
   let historyCache = [];
   let generationOptions = { ...GENERATION_OPTIONS_DEFAULTS };
+  let articleMarkdown = "";
+  let imagePromptsMarkdown = "";
+  let lastKeyword = "";
 
   function setItemGuarded(key, value) {
     if (isAnonymous) return;
@@ -1187,6 +1190,16 @@ document.addEventListener("DOMContentLoaded", () => {
     highlightComplexSentences(readability.complexSentences);
   }
 
+  function handleKeywordChange(nextKeyword) {
+    const trimmed = (nextKeyword || "").trim();
+    if (trimmed !== lastKeyword) {
+      if (lastKeyword || trimmed) {
+        imagePromptsMarkdown = "";
+      }
+      lastKeyword = trimmed;
+    }
+  }
+
   function estimateTokens() {
     const lengthLabel = lengthSelect ? lengthSelect.value.toLowerCase() : "";
     const lengthMap = {
@@ -1262,22 +1275,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (outputArea) {
     outputArea.addEventListener("input", () => {
+      articleMarkdown = outputArea.value;
       updateMetrics();
       renderPreview(outputArea.value);
       updateInsights();
     });
+    articleMarkdown = outputArea.value;
     updateMetrics();
     renderPreview(outputArea.value);
     updateInsights();
   }
 
+  if (keywordInput) {
+    lastKeyword = keywordInput.value.trim();
+  }
+
   [keywordInput, lengthSelect, languageSelect, toneSelect, extraInput].forEach((el) => {
     if (!el) return;
     el.addEventListener("change", () => {
+      if (el === keywordInput) {
+        handleKeywordChange(keywordInput.value);
+      }
       updateEstimates();
       updateInsights();
     });
     el.addEventListener("input", () => {
+      if (el === keywordInput) {
+        handleKeywordChange(keywordInput.value);
+      }
       updateEstimates();
       updateInsights();
     });
@@ -1533,17 +1558,40 @@ document.addEventListener("DOMContentLoaded", () => {
     return `${slug}-${today}.md`;
   }
 
-  function downloadMarkdown() {
+  function getExportContent(mode) {
+    const articleContent = articleMarkdown || "";
+    const hasArticle = articleContent.trim();
+    if (!hasArticle) {
+      return { error: "No article content to export yet." };
+    }
+
+    if (mode === "article") {
+      return { content: articleContent.trim() };
+    }
+
+    if (mode === "article+images") {
+      if (!imagePromptsMarkdown || !imagePromptsMarkdown.trim()) {
+        return { error: "No image prompts generated yet." };
+      }
+      return {
+        content: `${articleContent.trim()}\n\n---\n\n${imagePromptsMarkdown.trim()}`
+      };
+    }
+
+    return { error: "Unknown export mode." };
+  }
+
+  function downloadMarkdownWithMode(mode) {
     if (!outputArea) return;
-    const text = outputArea.value;
     statusEl.classList.remove("error", "loading");
-    if (!text || !text.trim()) {
-      statusEl.textContent = "Nothing to export yet. Generate content first.";
+    const { content, error } = getExportContent(mode);
+    if (error) {
+      statusEl.textContent = error;
       statusEl.classList.add("error");
       return;
     }
     const filename = getMarkdownFilename();
-    const blob = new Blob([text], { type: "text/markdown" });
+    const blob = new Blob([content], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -1615,9 +1663,12 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!item) return;
       const action = item.dataset.exportAction;
       closeExportMenu();
-      if (action === "download") {
-        downloadMarkdown();
+      if (action === "download-article") {
+        downloadMarkdownWithMode("article");
+      } else if (action === "download-article-images") {
+        downloadMarkdownWithMode("article+images");
       } else if (action === "ghost" || action === "wordpress") {
+        getExportContent("article");
         openExportModal(action);
       }
     });
@@ -1679,6 +1730,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (clearBtn) {
     clearBtn.addEventListener("click", () => {
+      articleMarkdown = "";
       outputArea.value = "";
       statusEl.textContent = "";
       statusEl.classList.remove("error", "loading");
@@ -1734,9 +1786,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!item) return;
       const entry = historyCache.find((h) => h.id === item.dataset.id);
       if (!entry) return;
-      outputArea.value = entry.content || "";
+      articleMarkdown = entry.content || "";
+      outputArea.value = articleMarkdown;
       updateMetrics();
-      renderPreview(entry.content || "");
+      renderPreview(articleMarkdown);
       updateInsights();
       statusEl.textContent = `Loaded “${entry.title}” from history.`;
       statusEl.classList.remove("error", "loading");
@@ -2105,6 +2158,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const keyword = keywordInput.value.trim();
+      handleKeywordChange(keyword);
       if (!keyword) {
         statusEl.textContent = "Please enter a main keyword.";
         statusEl.classList.add("error");
@@ -2199,9 +2253,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const content = await callChat(body, apiKey);
 
-        outputArea.value = content;
+        articleMarkdown = content;
+        outputArea.value = articleMarkdown;
         updateMetrics();
-        renderPreview(content);
+        renderPreview(articleMarkdown);
         updateInsights();
         addHistoryEntry({ content, keyword });
         statusEl.textContent = "Article generated. You can now copy the Markdown.";
@@ -2285,6 +2340,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const keyword = keywordInput.value.trim();
+    handleKeywordChange(keyword);
     if (!keyword) {
       statusEl.textContent = "Please enter a main keyword.";
       statusEl.classList.add("error");
@@ -2440,11 +2496,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const content = await callChat(body, apiKey);
 
-      outputArea.value = content.trim();
-      updateMetrics();
-      renderPreview(content);
-      updateInsights();
-      statusEl.textContent = "Image prompts generated. You can copy the Markdown.";
+      imagePromptsMarkdown = content.trim();
+      statusEl.textContent = "Image prompts generated. Available in Export.";
       statusEl.classList.remove("loading");
 
       recordCost(model, Math.min(maxTokens, 800));
@@ -2528,6 +2581,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const replacement = await callChat(body, apiKey);
       const newValue = `${outputArea.value.slice(0, start)}${replacement.trim()}${outputArea.value.slice(end)}`;
       outputArea.value = newValue;
+      articleMarkdown = newValue;
       updateMetrics();
       renderPreview(newValue);
       updateInsights();

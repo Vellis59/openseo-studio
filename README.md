@@ -48,7 +48,7 @@ When you enter your OpenRouter API key, the app automatically fetches all models
 - **Contextual generation options panel** for prompt mode and TOC toggles, scoped to generation only.
 - **Generation-only preferences** stored separately from global settings and skipped in anonymous mode.
 
-> Note: The previous cover image generator is temporarily disabled while we revisit the feature.
+
 
 ---
 

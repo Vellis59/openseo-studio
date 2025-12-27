@@ -129,6 +129,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const presetSelect = document.getElementById("presetSelect");
   const promptModeSelect = document.getElementById("promptMode");
   const tocCheckbox = document.getElementById("tocCheckbox");
+  const imageStyleSelect = document.getElementById("imageStyleSelect");
+  const imageCountSelect = document.getElementById("imageCountSelect");
+  const includeDiagramPromptCheckbox = document.getElementById("includeDiagramPrompt");
+  const includeNegativePromptCheckbox = document.getElementById("includeNegativePrompt");
 
   const expertToggle = document.getElementById("expertToggle");
   const expertPanel = document.getElementById("expertPanel");
@@ -159,6 +163,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const stepGenerate = document.getElementById("stepGenerate");
 
   const generateMetadataBtn = document.getElementById("generateMetadataBtn");
+  const generateImagePromptsBtn = document.getElementById("generateImagePromptsBtn");
   const seoScoreValue = document.getElementById("seoScoreValue");
   const seoScoreBar = document.getElementById("seoScoreBar");
   const seoChecksList = document.getElementById("seoChecksList");
@@ -203,13 +208,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const MAX_HISTORY_ITEMS = 20;
   const GENERATION_OPTIONS_DEFAULTS = {
     promptMode: "standard",
-    tocEnabled: false
+    tocEnabled: false,
+    imageStylePreset: "modern-illustration",
+    imageCount: 2,
+    includeDiagramPrompt: true,
+    includeNegativePrompt: false
   };
 
   let isAnonymous = false;
   let encryptedKeyPayload = null;
   let historyCache = [];
   let generationOptions = { ...GENERATION_OPTIONS_DEFAULTS };
+  let articleMarkdown = "";
+  let imagePromptsMarkdown = "";
+  let lastKeyword = "";
 
   function setItemGuarded(key, value) {
     if (isAnonymous) return;
@@ -246,9 +258,22 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function normalizeGenerationOptions(options = {}) {
+    const allowedImageCounts = [0, 2, 3, 4];
+    const parsedImageCount = Number(options.imageCount);
+    const resolvedImageCount = allowedImageCounts.includes(parsedImageCount)
+      ? parsedImageCount
+      : GENERATION_OPTIONS_DEFAULTS.imageCount;
     return {
       promptMode: options.promptMode || GENERATION_OPTIONS_DEFAULTS.promptMode,
-      tocEnabled: Boolean(options.tocEnabled)
+      tocEnabled: Boolean(options.tocEnabled),
+      imageStylePreset: options.imageStylePreset || GENERATION_OPTIONS_DEFAULTS.imageStylePreset,
+      imageCount: resolvedImageCount,
+      includeDiagramPrompt: options.includeDiagramPrompt !== undefined
+        ? Boolean(options.includeDiagramPrompt)
+        : GENERATION_OPTIONS_DEFAULTS.includeDiagramPrompt,
+      includeNegativePrompt: options.includeNegativePrompt !== undefined
+        ? Boolean(options.includeNegativePrompt)
+        : GENERATION_OPTIONS_DEFAULTS.includeNegativePrompt
     };
   }
 
@@ -282,13 +307,29 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tocCheckbox) {
       tocCheckbox.checked = generationOptions.tocEnabled;
     }
+    if (imageStyleSelect) {
+      imageStyleSelect.value = generationOptions.imageStylePreset;
+    }
+    if (imageCountSelect) {
+      imageCountSelect.value = String(generationOptions.imageCount);
+    }
+    if (includeDiagramPromptCheckbox) {
+      includeDiagramPromptCheckbox.checked = generationOptions.includeDiagramPrompt;
+    }
+    if (includeNegativePromptCheckbox) {
+      includeNegativePromptCheckbox.checked = generationOptions.includeNegativePrompt;
+    }
   }
 
   function syncGenerationOptionsFromUI() {
     if (!promptModeSelect || !tocCheckbox) return;
     generationOptions = normalizeGenerationOptions({
       promptMode: promptModeSelect.value,
-      tocEnabled: tocCheckbox.checked
+      tocEnabled: tocCheckbox.checked,
+      imageStylePreset: imageStyleSelect ? imageStyleSelect.value : GENERATION_OPTIONS_DEFAULTS.imageStylePreset,
+      imageCount: imageCountSelect ? Number(imageCountSelect.value) : GENERATION_OPTIONS_DEFAULTS.imageCount,
+      includeDiagramPrompt: includeDiagramPromptCheckbox ? includeDiagramPromptCheckbox.checked : true,
+      includeNegativePrompt: includeNegativePromptCheckbox ? includeNegativePromptCheckbox.checked : false
     });
     persistGenerationOptions(generationOptions);
   }
@@ -836,6 +877,11 @@ document.addEventListener("DOMContentLoaded", () => {
     tocCheckbox.addEventListener("change", syncGenerationOptionsFromUI);
   }
 
+  [imageStyleSelect, imageCountSelect, includeDiagramPromptCheckbox, includeNegativePromptCheckbox].forEach((el) => {
+    if (!el) return;
+    el.addEventListener("change", syncGenerationOptionsFromUI);
+  });
+
   function openGenerationOptions() {
     if (!generationOptionsPanel || !generationOptionsBtn) return;
     generationOptionsPanel.classList.add("open");
@@ -912,6 +958,15 @@ document.addEventListener("DOMContentLoaded", () => {
         return { level: match[1].length, text: match[2].trim() };
       })
       .filter(Boolean);
+  }
+
+  function getPlanSectionHeadings(limit = 4) {
+    if (!planEditor || !planEditor.value) return [];
+    const headings = parseHeadings(planEditor.value);
+    return headings
+      .filter((heading) => heading.level === 2 && heading.text)
+      .map((heading) => heading.text)
+      .slice(0, limit);
   }
 
   function analyzeSeo(content, keyword) {
@@ -1135,6 +1190,16 @@ document.addEventListener("DOMContentLoaded", () => {
     highlightComplexSentences(readability.complexSentences);
   }
 
+  function handleKeywordChange(nextKeyword) {
+    const trimmed = (nextKeyword || "").trim();
+    if (trimmed !== lastKeyword) {
+      if (lastKeyword || trimmed) {
+        imagePromptsMarkdown = "";
+      }
+      lastKeyword = trimmed;
+    }
+  }
+
   function estimateTokens() {
     const lengthLabel = lengthSelect ? lengthSelect.value.toLowerCase() : "";
     const lengthMap = {
@@ -1210,22 +1275,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (outputArea) {
     outputArea.addEventListener("input", () => {
+      articleMarkdown = outputArea.value;
       updateMetrics();
       renderPreview(outputArea.value);
       updateInsights();
     });
+    articleMarkdown = outputArea.value;
     updateMetrics();
     renderPreview(outputArea.value);
     updateInsights();
   }
 
+  if (keywordInput) {
+    lastKeyword = keywordInput.value.trim();
+  }
+
   [keywordInput, lengthSelect, languageSelect, toneSelect, extraInput].forEach((el) => {
     if (!el) return;
     el.addEventListener("change", () => {
+      if (el === keywordInput) {
+        handleKeywordChange(keywordInput.value);
+      }
       updateEstimates();
       updateInsights();
     });
     el.addEventListener("input", () => {
+      if (el === keywordInput) {
+        handleKeywordChange(keywordInput.value);
+      }
       updateEstimates();
       updateInsights();
     });
@@ -1481,17 +1558,40 @@ document.addEventListener("DOMContentLoaded", () => {
     return `${slug}-${today}.md`;
   }
 
-  function downloadMarkdown() {
+  function getExportContent(mode) {
+    const articleContent = articleMarkdown || "";
+    const hasArticle = articleContent.trim();
+    if (!hasArticle) {
+      return { error: "No article content to export yet." };
+    }
+
+    if (mode === "article") {
+      return { content: articleContent.trim() };
+    }
+
+    if (mode === "article+images") {
+      if (!imagePromptsMarkdown || !imagePromptsMarkdown.trim()) {
+        return { error: "No image prompts generated yet." };
+      }
+      return {
+        content: `${articleContent.trim()}\n\n---\n\n${imagePromptsMarkdown.trim()}`
+      };
+    }
+
+    return { error: "Unknown export mode." };
+  }
+
+  function downloadMarkdownWithMode(mode) {
     if (!outputArea) return;
-    const text = outputArea.value;
     statusEl.classList.remove("error", "loading");
-    if (!text || !text.trim()) {
-      statusEl.textContent = "Nothing to export yet. Generate content first.";
+    const { content, error } = getExportContent(mode);
+    if (error) {
+      statusEl.textContent = error;
       statusEl.classList.add("error");
       return;
     }
     const filename = getMarkdownFilename();
-    const blob = new Blob([text], { type: "text/markdown" });
+    const blob = new Blob([content], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -1563,9 +1663,12 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!item) return;
       const action = item.dataset.exportAction;
       closeExportMenu();
-      if (action === "download") {
-        downloadMarkdown();
+      if (action === "download-article") {
+        downloadMarkdownWithMode("article");
+      } else if (action === "download-article-images") {
+        downloadMarkdownWithMode("article+images");
       } else if (action === "ghost" || action === "wordpress") {
+        getExportContent("article");
         openExportModal(action);
       }
     });
@@ -1627,6 +1730,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (clearBtn) {
     clearBtn.addEventListener("click", () => {
+      articleMarkdown = "";
       outputArea.value = "";
       statusEl.textContent = "";
       statusEl.classList.remove("error", "loading");
@@ -1682,9 +1786,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!item) return;
       const entry = historyCache.find((h) => h.id === item.dataset.id);
       if (!entry) return;
-      outputArea.value = entry.content || "";
+      articleMarkdown = entry.content || "";
+      outputArea.value = articleMarkdown;
       updateMetrics();
-      renderPreview(entry.content || "");
+      renderPreview(articleMarkdown);
       updateInsights();
       statusEl.textContent = `Loaded “${entry.title}” from history.`;
       statusEl.classList.remove("error", "loading");
@@ -2053,6 +2158,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const keyword = keywordInput.value.trim();
+      handleKeywordChange(keyword);
       if (!keyword) {
         statusEl.textContent = "Please enter a main keyword.";
         statusEl.classList.add("error");
@@ -2147,9 +2253,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const content = await callChat(body, apiKey);
 
-        outputArea.value = content;
+        articleMarkdown = content;
+        outputArea.value = articleMarkdown;
         updateMetrics();
-        renderPreview(content);
+        renderPreview(articleMarkdown);
         updateInsights();
         addHistoryEntry({ content, keyword });
         statusEl.textContent = "Article generated. You can now copy the Markdown.";
@@ -2233,6 +2340,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const keyword = keywordInput.value.trim();
+    handleKeywordChange(keyword);
     if (!keyword) {
       statusEl.textContent = "Please enter a main keyword.";
       statusEl.classList.add("error");
@@ -2304,6 +2412,114 @@ document.addEventListener("DOMContentLoaded", () => {
     generateMetadataBtn.addEventListener("click", generateMetadata);
   }
 
+  /* ---------- Image prompt generation ---------- */
+
+  async function generateImagePrompts() {
+    statusEl.textContent = "";
+    statusEl.classList.remove("error", "loading");
+
+    const apiKey = sanitizeApiKey(apiKeyInput.value);
+    apiKeyInput.value = apiKey;
+    if (!apiKey) {
+      statusEl.textContent = "Please provide your OpenRouter API key in the settings menu.";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const keyword = keywordInput.value.trim();
+    if (!keyword) {
+      statusEl.textContent = "Please enter a main keyword.";
+      statusEl.classList.add("error");
+      keywordInput.focus();
+      return;
+    }
+
+    const model = modelSelect.value;
+    if (!model) {
+      statusEl.textContent = "Please select a model before generating image prompts.";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const languageConfig = getSelectedLanguage();
+    const options = normalizeGenerationOptions(generationOptions);
+    const optionalHeadings = getPlanSectionHeadings(4);
+    const userPrompt = buildImagePromptsUserPrompt({
+      keyword,
+      uiLanguage: languageConfig.promptName,
+      stylePreset: options.imageStylePreset,
+      imageCount: options.imageCount,
+      includeDiagramPrompt: options.includeDiagramPrompt,
+      includeNegativePrompt: options.includeNegativePrompt,
+      optionalHeadings
+    });
+
+    const temperature = expertToggle && expertToggle.checked ? Number(temperatureInput.value) || 0.6 : 0.6;
+    const maxTokensRaw = expertToggle && expertToggle.checked ? Number(maxTokensInput.value) || 900 : 900;
+    const maxTokens = Math.min(Math.max(700, maxTokensRaw), 1200);
+    const top_p = expertToggle && expertToggle.checked ? Number(topPInput.value) || 1 : 1;
+    const frequency_penalty =
+      expertToggle && expertToggle.checked && frequencyPenaltyInput
+        ? Number(frequencyPenaltyInput.value) || 0
+        : 0;
+
+    const body = {
+      model,
+      messages: [
+        {
+          role: "system",
+          content: buildImagePromptsSystemPrompt()
+        },
+        {
+          role: "user",
+          content: userPrompt
+        }
+      ],
+      temperature,
+      top_p,
+      frequency_penalty,
+      max_tokens: maxTokens
+    };
+
+    let endProgress;
+    try {
+      if (generateImagePromptsBtn) {
+        generateImagePromptsBtn.disabled = true;
+        generateImagePromptsBtn.textContent = "Generating...";
+      }
+      statusEl.textContent = "Contacting OpenRouter...";
+      statusEl.classList.remove("error");
+      statusEl.classList.add("loading");
+
+      endProgress = startProgress("short");
+      statusEl.textContent = "Generating image prompts...";
+
+      const content = await callChat(body, apiKey);
+
+      imagePromptsMarkdown = content.trim();
+      statusEl.textContent = "Image prompts generated. Available in Export.";
+      statusEl.classList.remove("loading");
+
+      recordCost(model, Math.min(maxTokens, 800));
+      updateEstimates();
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = `Error generating image prompts: ${err.message}`;
+      statusEl.classList.add("error");
+      statusEl.classList.remove("loading");
+    } finally {
+      if (endProgress) endProgress(!statusEl.classList.contains("error"));
+      if (generateImagePromptsBtn) {
+        generateImagePromptsBtn.disabled = false;
+        generateImagePromptsBtn.textContent = "Generate image prompts";
+      }
+    }
+  }
+
+  if (generateImagePromptsBtn) {
+    generateImagePromptsBtn.addEventListener("click", generateImagePrompts);
+  }
+
   /* ---------- Selection regeneration ---------- */
 
   async function regenerateSelection({ changeTone = false } = {}) {
@@ -2365,6 +2581,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const replacement = await callChat(body, apiKey);
       const newValue = `${outputArea.value.slice(0, start)}${replacement.trim()}${outputArea.value.slice(end)}`;
       outputArea.value = newValue;
+      articleMarkdown = newValue;
       updateMetrics();
       renderPreview(newValue);
       updateInsights();
@@ -2438,6 +2655,27 @@ const PROMPT_BLOCKS = {
 
 function buildSystemPrompt() {
   return [...PROMPT_BLOCKS.ROLE_DEFINITION, ...PROMPT_BLOCKS.BASE_INVARIANTS].join(" ");
+}
+
+const IMAGE_STYLE_PRESETS = {
+  "modern-illustration": "modern flat illustration, clean vector shapes, soft gradients, subtle texture, balanced negative space",
+  "isometric-tech": "isometric perspective, clean tech aesthetic, crisp geometry, subtle lighting, organized layout",
+  photorealistic: "photorealistic, natural lighting, realistic materials, shallow depth of field, high detail",
+  "minimalist-diagram": "minimalist diagram style, simple geometric shapes, restrained palette, clear structure",
+  "3d-render": "3D render, product-like studio lighting, realistic materials, clean backdrop, soft shadows"
+};
+
+function buildImagePromptsSystemPrompt() {
+  return [
+    "You are an expert visual prompt engineer. You write high-quality prompts for AI image generators.",
+    "Rules:",
+    "- Do NOT generate images, only text prompts.",
+    "- No emojis.",
+    "- No copyrighted characters, brand logos, or trademarked designs.",
+    "- Avoid text overlays: explicitly include 'no text, no watermark, no logo'.",
+    "- Prompts must be usable for Midjourney, Stable Diffusion, and DALL·E.",
+    "- Output ONLY Markdown with the required structure."
+  ].join("\n");
 }
 
 function buildPromptBlocks({
@@ -2543,4 +2781,50 @@ function buildUserPrompt({ keyword, languageConfig, tone, length, extra, planTex
     mode,
     tocRequested: Boolean(tocCheckbox && tocCheckbox.checked)
   });
+}
+
+function buildImagePromptsUserPrompt({
+  keyword,
+  uiLanguage,
+  stylePreset,
+  imageCount,
+  includeDiagramPrompt,
+  includeNegativePrompt,
+  optionalHeadings
+}) {
+  const styleCue = IMAGE_STYLE_PRESETS[stylePreset] || IMAGE_STYLE_PRESETS["modern-illustration"];
+  const headings = Array.isArray(optionalHeadings) ? optionalHeadings.filter(Boolean) : [];
+  const headingList = headings.length ? headings.join(" | ") : "Section 1 | Section 2 | Section 3 | Section 4";
+
+  return [
+    `Topic keyword: "${keyword}".`,
+    `UI language for headings and notes: ${uiLanguage}.`,
+    "Headings and notes must be written only in the UI language.",
+    "Prompts themselves must be written in English for compatibility.",
+    `Style preset: ${styleCue}.`,
+    `Section image count: ${imageCount}.`,
+    `Use up to 4 section titles from this list if available: ${headingList}.`,
+    "If not enough section titles are provided, create generic section labels.",
+    "Output must be Markdown only with this structure:",
+    "## Image prompts",
+    "### Featured image",
+    "Prompt: \"...\"",
+    "Notes:",
+    "- ...",
+    "- ...",
+    "- ...",
+    "### Section images",
+    "#### Section image 1 — {title}",
+    "Prompt: \"...\"",
+    "Repeat for the required number of section images.",
+    includeDiagramPrompt ? "### Diagram / infographic\nPrompt: \"...\"" : "",
+    includeNegativePrompt ? "### Negative prompt\nNegative: \"...\"" : "",
+    "Prompt quality requirements:",
+    "- Include visual style cues based on the style preset.",
+    "- Always include: no text, no watermark, no logo.",
+    "- Avoid brand names and copyrighted characters.",
+    "- Keep each prompt in a single quoted line."
+  ]
+    .filter(Boolean)
+    .join("\n");
 }

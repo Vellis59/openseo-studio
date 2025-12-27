@@ -1,6 +1,57 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 
+const SW_DEBUG_PARAM = "debugSW";
+const SW_RESET_PARAM = "resetSW";
+
+function getServiceWorkerFlags() {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    shouldDebug: params.has(SW_DEBUG_PARAM),
+    shouldReset: params.has(SW_RESET_PARAM)
+  };
+}
+
+async function logServiceWorkerStatus() {
+  const controller = navigator.serviceWorker.controller;
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  console.info("[SW debug] controller:", controller);
+  console.info("[SW debug] registrations:", registrations);
+}
+
+async function resetServiceWorkersAndCaches() {
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  await Promise.all(registrations.map((registration) => registration.unregister()));
+
+  if ("caches" in window) {
+    const cacheKeys = await caches.keys();
+    await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+  }
+
+  console.info("[SW reset] Unregistered service workers and cleared caches.");
+}
+
+function setupServiceWorkerTools() {
+  const { shouldDebug, shouldReset } = getServiceWorkerFlags();
+  if (!shouldDebug && !shouldReset) return;
+
+  window.addEventListener("load", () => {
+    if (!("serviceWorker" in navigator)) {
+      console.info("[SW debug] Service workers are not supported in this browser.");
+      return;
+    }
+
+    const tasks = [];
+    if (shouldReset) tasks.push(resetServiceWorkersAndCaches());
+    if (shouldDebug) tasks.push(logServiceWorkerStatus());
+    Promise.all(tasks).catch((error) => {
+      console.info("[SW debug] Service worker check failed:", error);
+    });
+  });
+}
+
+setupServiceWorkerTools();
+
 const MODEL_PRICING = {
   default: { prompt: 0.003, completion: 0.006 }
 };

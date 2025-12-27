@@ -86,5 +86,15 @@ http://localhost:8080/
 
 Deploy the contents of this repository to **Cloudflare Pages** (or any static host).
 
+### Service worker cleanup (if you previously used one)
+
+If an older service worker is still controlling the site, open the deployed site once with:
+
+`https://<your-domain>/?resetSW=1`
+
+This unregisters any service workers and clears caches. To confirm status in the console, use:
+
+`https://<your-domain>/?debugSW=1`
+
 ## License
 Released under the MIT License. See the LICENSE file for details.

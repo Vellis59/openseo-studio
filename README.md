@@ -5,11 +5,11 @@ OpenSEO Studio is a **fully client-side, static SEO writing tool** powered by AI
 No backend. No database. Bring Your Own API Key (BYOK).  
 Your API key stays in your browser — you keep full control.
 
-This repository contains **OpenSEO Studio v1.1.0**, including split-screen editing, light/dark theme controls, offline-ready PWA support, refreshed mobile UX, multilingual SEO output, client-side persistence & security controls, and export-ready actions.
+This repository contains **OpenSEO Studio v1.1.1**, including split-screen editing, light/dark theme controls, refreshed mobile UX, multilingual SEO output, client-side persistence & security controls, and export-ready actions.
 
 ---
 
-## Features (v1.1.0)
+## Features (v1.1.1)
 
 ### 🧩 Core Functionality
 - 100% client-side, static HTML/CSS/JS
@@ -82,11 +82,9 @@ python -m http.server 8080
 Then visit:
 http://localhost:8080/
 
-Service workers and PWA install prompts require a server context (Option 2 or Cloudflare Pages) to register correctly.
-
 ## Cloud deployment
 
-Deploy the contents of this repository to **Cloudflare Pages** (or any static host). The included `manifest.json`, `service-worker.js`, and icons are ready for production.
+Deploy the contents of this repository to **Cloudflare Pages** (or any static host).
 
 ## License
 Released under the MIT License. See the LICENSE file for details.

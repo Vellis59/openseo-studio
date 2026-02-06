@@ -1,6 +1,30 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 
+const CHAT_PROVIDERS = {
+  openrouter: "openrouter",
+  openai: "openai",
+  anthropic: "anthropic",
+  gemini: "gemini",
+  ollama: "ollama"
+};
+
+// Curated model ids (kept small on purpose so the app stays simple).
+const CURATED_MODELS = {
+  openai: [
+    { id: "gpt-4o-mini", label: "gpt-4o-mini" },
+    { id: "gpt-4o", label: "gpt-4o" }
+  ],
+  anthropic: [
+    { id: "claude-3-5-sonnet-latest", label: "claude-3-5-sonnet-latest" },
+    { id: "claude-3-5-haiku-latest", label: "claude-3-5-haiku-latest" }
+  ],
+  gemini: [
+    { id: "gemini-1.5-flash", label: "gemini-1.5-flash" },
+    { id: "gemini-1.5-pro", label: "gemini-1.5-pro" }
+  ]
+};
+
 const SW_DEBUG_PARAM = "debugSW";
 const SW_RESET_PARAM = "resetSW";
 
@@ -147,6 +171,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const menuPanel = document.getElementById("menuPanel");
   const themeToggle = document.getElementById("themeToggle");
 
+  const providerSelect = document.getElementById("providerSelect");
+  const apiKeyLabelText = document.getElementById("apiKeyLabelText");
+  const apiKeyHelpText = document.getElementById("apiKeyHelpText");
+  const modelHelpText = document.getElementById("modelHelpText");
+  const ollamaBaseUrlRow = document.getElementById("ollamaBaseUrlRow");
+  const ollamaBaseUrlInput = document.getElementById("ollamaBaseUrl");
+
   const apiKeyInput = document.getElementById("apiKey");
   const rememberKeyCheckbox = document.getElementById("rememberKey");
   const masterPasswordInput = document.getElementById("masterPassword");
@@ -249,8 +280,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const generationOptionsBtn = document.getElementById("generationOptionsBtn");
   const generationOptionsPanel = document.getElementById("generationOptionsPanel");
 
+  // Legacy keys (pre-provider support)
   const STORAGE_KEY_API = "openseo_openrouter_key";
   const STORAGE_KEY_MODEL = "openseo_default_model";
+  // New multi-provider storage
+  const STORAGE_KEY_PROVIDER = "openseo_provider";
+  const STORAGE_KEY_PROVIDER_CONFIGS = "openseo_provider_configs";
+  // Older transitional keys (kept for cleanup / import compatibility)
+  const STORAGE_KEY_API_GENERIC = "openseo_api_key";
+  const STORAGE_KEY_BASE_URL = "openseo_base_url";
   const STORAGE_KEY_THEME = "openseo_color_theme";
   const STORAGE_KEY_HISTORY = "openseo_article_history";
   const STORAGE_KEY_SPEND = "openseo_monthly_spend";
@@ -266,6 +304,8 @@ document.addEventListener("DOMContentLoaded", () => {
     includeDiagramPrompt: true,
     includeNegativePrompt: false
   };
+
+  const OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434";
 
   let isAnonymous = false;
   let encryptedKeyPayload = null;
@@ -291,6 +331,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function clearAppStorage() {
     [
       STORAGE_KEY_API,
+      STORAGE_KEY_API_GENERIC,
+      STORAGE_KEY_PROVIDER,
+      STORAGE_KEY_PROVIDER_CONFIGS,
+      STORAGE_KEY_BASE_URL,
       STORAGE_KEY_MODEL,
       STORAGE_KEY_THEME,
       STORAGE_KEY_HISTORY,
@@ -427,11 +471,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateReloadModelsButton() {
     if (!reloadModelsBtn) return;
+    const provider = getSelectedProvider ? getSelectedProvider() : CHAT_PROVIDERS.openrouter;
+    if (provider !== CHAT_PROVIDERS.openrouter) {
+      reloadModelsBtn.disabled = true;
+      return;
+    }
     const key = apiKeyInput ? sanitizeApiKey(apiKeyInput.value) : "";
     reloadModelsBtn.disabled = !looksLikeOpenRouterKey(key);
   }
 
   function scheduleModelsReload({ force = false } = {}) {
+    const provider = getSelectedProvider ? getSelectedProvider() : CHAT_PROVIDERS.openrouter;
+    if (provider !== CHAT_PROVIDERS.openrouter) return;
     const key = apiKeyInput ? sanitizeApiKey(apiKeyInput.value) : "";
     updateReloadModelsButton();
     if (!looksLikeOpenRouterKey(key)) return;
@@ -579,7 +630,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function hydrateApiKeyFromStorage() {
     if (!apiKeyInput || isAnonymous) return;
-    const raw = window.localStorage.getItem(STORAGE_KEY_API);
+    const raw = window.localStorage.getItem(STORAGE_KEY_API_GENERIC) || window.localStorage.getItem(STORAGE_KEY_API);
     if (!raw) {
       return;
     }
@@ -594,7 +645,9 @@ document.addEventListener("DOMContentLoaded", () => {
       if (payload.method === "base64") {
         const key = base64Decode(payload.cipher);
         apiKeyInput.value = key;
-        fetchAndPopulateModels(key);
+        refreshModelOptions({ force: true }).catch(() => {
+          // refreshModelOptions handles status/UI
+        });
         return;
       }
 
@@ -603,7 +656,9 @@ document.addEventListener("DOMContentLoaded", () => {
         if (password) {
           const key = xorDecrypt(payload.cipher, password);
           apiKeyInput.value = key;
-          fetchAndPopulateModels(key);
+          refreshModelOptions({ force: true }).catch(() => {
+            // refreshModelOptions handles status/UI
+          });
         } else if (statusEl) {
           statusEl.textContent = "Enter your master password to unlock the API key.";
           statusEl.classList.add("error");
@@ -618,6 +673,9 @@ document.addEventListener("DOMContentLoaded", () => {
   historyCache = loadHistoryFromStorage();
   renderHistory();
   hydrateApiKeyFromStorage();
+  refreshModelOptions({ force: false }).catch(() => {
+    // refreshModelOptions handles status/UI
+  });
   showWelcomeIfNeeded();
 
   /* ---------- Theme toggle ---------- */
@@ -646,6 +704,76 @@ document.addEventListener("DOMContentLoaded", () => {
 
   applyTheme(resolveTheme());
 
+  /* ---------- Provider settings ---------- */
+
+  function normalizeProvider(value) {
+    const next = (value || "").toLowerCase().trim();
+    return CHAT_PROVIDERS[next] || CHAT_PROVIDERS.openrouter;
+  }
+
+  function getSelectedProvider() {
+    const fromUi = providerSelect ? normalizeProvider(providerSelect.value) : "";
+    if (fromUi) return fromUi;
+    if (isAnonymous) return CHAT_PROVIDERS.openrouter;
+    return normalizeProvider(window.localStorage.getItem(STORAGE_KEY_PROVIDER));
+  }
+
+  function getBaseUrl() {
+    const fromUi = baseUrlInput ? (baseUrlInput.value || "").trim() : "";
+    if (fromUi) return fromUi;
+    if (isAnonymous) return "";
+    return (window.localStorage.getItem(STORAGE_KEY_BASE_URL) || "").trim();
+  }
+
+  function setBaseUrl(value) {
+    const next = (value || "").trim();
+    if (baseUrlInput) baseUrlInput.value = next;
+    if (isAnonymous) return;
+    if (next) setItemGuarded(STORAGE_KEY_BASE_URL, next);
+    else removeItem(STORAGE_KEY_BASE_URL);
+  }
+
+  function applyProviderUi(provider) {
+    const isOllama = provider === CHAT_PROVIDERS.ollama;
+    if (baseUrlRow) baseUrlRow.classList.toggle("hidden", !isOllama);
+    if (reloadModelsBtn) {
+      reloadModelsBtn.classList.toggle("hidden", provider !== CHAT_PROVIDERS.openrouter);
+    }
+  }
+
+  async function refreshModelOptions({ force = false } = {}) {
+    const provider = getSelectedProvider();
+    applyProviderUi(provider);
+
+    if (provider === CHAT_PROVIDERS.openrouter) {
+      const key = apiKeyInput ? sanitizeApiKey(apiKeyInput.value) : "";
+      updateReloadModelsButton();
+      if (!looksLikeOpenRouterKey(key)) {
+        clearModelOptions();
+        return;
+      }
+      await fetchAndPopulateModels(key, { force });
+      return;
+    }
+
+    // Static curated models (no network call).
+    const curated = CURATED_MODELS[provider] || [];
+    populateModelOptions(curated.map((m) => ({ id: m.id, name: m.label })));
+    if (statusEl) {
+      statusEl.classList.remove("error", "loading");
+      statusEl.textContent = curated.length ? "Models ready." : "Enter a model name manually.";
+    }
+  }
+
+  function setProvider(value) {
+    const next = normalizeProvider(value);
+    if (providerSelect) providerSelect.value = next;
+    if (!isAnonymous) setItemGuarded(STORAGE_KEY_PROVIDER, next);
+    refreshModelOptions({ force: true }).catch(() => {
+      // refreshModelOptions handles status/UI
+    });
+  }
+
   prefersDark.addEventListener("change", () => {
     if (isAnonymous) return;
     const stored = window.localStorage.getItem(STORAGE_KEY_THEME);
@@ -660,8 +788,22 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  const storedProvider = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_PROVIDER) : null;
+  if (providerSelect) {
+    providerSelect.value = normalizeProvider(storedProvider);
+    providerSelect.addEventListener("change", () => setProvider(providerSelect.value));
+  }
+
+  const storedBaseUrl = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_BASE_URL) : null;
+  if (baseUrlInput) {
+    baseUrlInput.value = (storedBaseUrl || "").trim();
+    baseUrlInput.addEventListener("change", () => setBaseUrl(baseUrlInput.value));
+  }
+
+  applyProviderUi(getSelectedProvider());
+
   const storedModel = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_MODEL) : null;
-  if (storedModel) {
+  if (storedModel && modelSelect) {
     modelSelect.value = storedModel;
   }
 
@@ -674,11 +816,13 @@ document.addEventListener("DOMContentLoaded", () => {
   function persistApiKey(key) {
     if (isAnonymous) {
       removeItem(STORAGE_KEY_API);
+      removeItem(STORAGE_KEY_API_GENERIC);
       return;
     }
 
     if (!rememberKeyCheckbox || !rememberKeyCheckbox.checked) {
       removeItem(STORAGE_KEY_API);
+      removeItem(STORAGE_KEY_API_GENERIC);
       return;
     }
 
@@ -688,6 +832,8 @@ document.addEventListener("DOMContentLoaded", () => {
       : { method: "base64", cipher: base64Encode(key) };
 
     encryptedKeyPayload = payload;
+    setItemGuarded(STORAGE_KEY_API_GENERIC, JSON.stringify(payload));
+    // Backward-compatible key (older versions only knew OpenRouter).
     setItemGuarded(STORAGE_KEY_API, JSON.stringify(payload));
   }
 
@@ -698,10 +844,13 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!key) {
         clearModelOptions();
         removeItem(STORAGE_KEY_API);
+        removeItem(STORAGE_KEY_API_GENERIC);
         return;
       }
       persistApiKey(key);
-      fetchAndPopulateModels(key);
+      refreshModelOptions({ force: true }).catch(() => {
+        // refreshModelOptions handles status/UI
+      });
     });
   }
 
@@ -728,7 +877,9 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           const key = xorDecrypt(encryptedKeyPayload.cipher, masterPasswordInput.value);
           apiKeyInput.value = key;
-          fetchAndPopulateModels(key);
+          refreshModelOptions({ force: true }).catch(() => {
+            // refreshModelOptions handles status/UI
+          });
           statusEl.classList.remove("error");
           statusEl.textContent = "API key unlocked.";
         } catch (err) {
@@ -768,7 +919,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const inputKey = apiKeyInput ? sanitizeApiKey(apiKeyInput.value) : "";
     if (inputKey) return true;
     if (isAnonymous) return false;
-    const raw = window.localStorage.getItem(STORAGE_KEY_API);
+    const raw = window.localStorage.getItem(STORAGE_KEY_API_GENERIC) || window.localStorage.getItem(STORAGE_KEY_API);
     return !!raw;
   }
 
@@ -2132,7 +2283,8 @@ document.addEventListener("DOMContentLoaded", () => {
       progressBar.style.width = "8%";
     }
     if (progressLabel) {
-      progressLabel.textContent = "Contacting OpenRouter...";
+      const provider = getSelectedProvider ? getSelectedProvider() : "provider";
+      progressLabel.textContent = `Contacting ${provider}...`;
     }
     if (etaLabel) {
       etaLabel.textContent = `~${formatSeconds(estimate)}`;
@@ -2188,18 +2340,160 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  async function callChat(body, apiKey) {
-    const sanitizedKey = sanitizeApiKey(apiKey);
-    if (!sanitizedKey) {
-      throw new Error("Invalid API key.");
+  function extractTextFromOpenAiLikeResponse(data) {
+    const content = data?.choices?.[0]?.message?.content;
+    return typeof content === "string" ? content : "";
+  }
+
+  function extractTextFromAnthropicResponse(data) {
+    const parts = Array.isArray(data?.content) ? data.content : [];
+    const text = parts
+      .filter((p) => p && p.type === "text" && typeof p.text === "string")
+      .map((p) => p.text)
+      .join("");
+    return text || "";
+  }
+
+  function extractTextFromGeminiResponse(data) {
+    const parts = data?.candidates?.[0]?.content?.parts;
+    if (!Array.isArray(parts)) return "";
+    return parts.map((p) => (typeof p?.text === "string" ? p.text : "")).join("").trim();
+  }
+
+  function extractTextFromOllamaResponse(data) {
+    const content = data?.message?.content;
+    return typeof content === "string" ? content : "";
+  }
+
+  function splitSystemFromMessages(messages = []) {
+    const system = [];
+    const rest = [];
+    (messages || []).forEach((msg) => {
+      if (!msg) return;
+      if (msg.role === "system") system.push(msg.content || "");
+      else rest.push(msg);
+    });
+    return { system: system.filter(Boolean).join("\n\n").trim(), messages: rest };
+  }
+
+  function coerceOpenAiMessages(inputMessages = [], includeSystem = true) {
+    const { system, messages } = splitSystemFromMessages(inputMessages);
+    if (!includeSystem || !system) return messages;
+    return [{ role: "system", content: system }, ...messages];
+  }
+
+  function toAnthropicMessages(openAiMessages = []) {
+    const { system, messages } = splitSystemFromMessages(openAiMessages);
+    const mapped = messages
+      .filter((m) => m && m.role && m.content)
+      .map((m) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: [{ type: "text", text: String(m.content) }]
+      }));
+    return { system, messages: mapped };
+  }
+
+  function toGeminiRequest(openAiMessages = []) {
+    const { system, messages } = splitSystemFromMessages(openAiMessages);
+    const contents = (messages || [])
+      .filter((m) => m && m.role && m.content)
+      .map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: String(m.content) }]
+      }));
+    const request = { contents };
+    if (system) {
+      request.systemInstruction = { parts: [{ text: system }] };
     }
-    const response = await fetch(OPENROUTER_URL, {
+    return request;
+  }
+
+  async function callChatProvider({ provider, model, apiKey, baseUrl, body, messages, params } = {}) {
+    const resolvedProvider = normalizeProvider(provider);
+    const resolvedModel = model || body?.model;
+    const resolvedMessages = messages || body?.messages || [];
+    const resolvedParams = params || {};
+
+    if (!resolvedModel) throw new Error("Missing model.");
+
+    const common = {
+      temperature: body?.temperature ?? resolvedParams.temperature,
+      max_tokens: body?.max_tokens ?? resolvedParams.max_tokens,
+      top_p: body?.top_p ?? resolvedParams.top_p,
+      frequency_penalty: body?.frequency_penalty ?? resolvedParams.frequency_penalty
+    };
+
+    let url = "";
+    let requestBody = {};
+    const headers = { "Content-Type": "application/json" };
+
+    if (resolvedProvider === CHAT_PROVIDERS.openrouter) {
+      const sanitizedKey = sanitizeApiKey(apiKey);
+      if (!sanitizedKey) throw new Error("Invalid API key.");
+      url = OPENROUTER_URL;
+      headers.Authorization = `Bearer ${sanitizedKey}`;
+      requestBody = { ...body, model: resolvedModel, messages: coerceOpenAiMessages(resolvedMessages) };
+    } else if (resolvedProvider === CHAT_PROVIDERS.openai) {
+      const sanitizedKey = sanitizeApiKey(apiKey);
+      if (!sanitizedKey) throw new Error("Invalid API key.");
+      url = "https://api.openai.com/v1/chat/completions";
+      headers.Authorization = `Bearer ${sanitizedKey}`;
+      requestBody = {
+        model: resolvedModel,
+        messages: coerceOpenAiMessages(resolvedMessages),
+        temperature: common.temperature,
+        max_tokens: common.max_tokens,
+        top_p: common.top_p,
+        frequency_penalty: common.frequency_penalty
+      };
+    } else if (resolvedProvider === CHAT_PROVIDERS.anthropic) {
+      const sanitizedKey = sanitizeApiKey(apiKey);
+      if (!sanitizedKey) throw new Error("Invalid API key.");
+      url = "https://api.anthropic.com/v1/messages";
+      headers["x-api-key"] = sanitizedKey;
+      headers["anthropic-version"] = "2023-06-01";
+      const mapped = toAnthropicMessages(resolvedMessages);
+      requestBody = {
+        model: resolvedModel,
+        system: mapped.system || undefined,
+        messages: mapped.messages,
+        // Anthropic requires max_tokens
+        max_tokens: Number.isFinite(Number(common.max_tokens)) ? Number(common.max_tokens) : 1024,
+        temperature: common.temperature
+      };
+    } else if (resolvedProvider === CHAT_PROVIDERS.gemini) {
+      const sanitizedKey = sanitizeApiKey(apiKey);
+      if (!sanitizedKey) throw new Error("Invalid API key.");
+      url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(resolvedModel)}:generateContent?key=${encodeURIComponent(sanitizedKey)}`;
+      requestBody = toGeminiRequest(resolvedMessages);
+      // generationConfig is optional.
+      requestBody.generationConfig = {
+        temperature: common.temperature,
+        topP: common.top_p,
+        maxOutputTokens: common.max_tokens
+      };
+    } else if (resolvedProvider === CHAT_PROVIDERS.ollama) {
+      const base = (baseUrl || "").trim().replace(/\/+$/, "");
+      if (!base) throw new Error("Missing baseUrl for Ollama.");
+      url = `${base}/api/chat`;
+      requestBody = {
+        model: resolvedModel,
+        messages: coerceOpenAiMessages(resolvedMessages),
+        stream: false,
+        options: {
+          temperature: common.temperature,
+          top_p: common.top_p,
+          num_predict: common.max_tokens
+        }
+      };
+    } else {
+      throw new Error(`Unsupported provider: ${resolvedProvider}`);
+    }
+
+    const response = await fetch(url, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${sanitizedKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
+      headers,
+      body: JSON.stringify(requestBody)
     });
 
     if (!response.ok) {
@@ -2207,23 +2501,25 @@ document.addEventListener("DOMContentLoaded", () => {
       let message = `API error ${response.status}`;
       try {
         const parsed = JSON.parse(text);
-        if (parsed && parsed.error && parsed.error.message) {
-          message = parsed.error.message;
-        }
+        message =
+          parsed?.error?.message ||
+          parsed?.message ||
+          parsed?.error ||
+          message;
       } catch {
-        // noop
+        if (text && text.trim()) message = text.slice(0, 400);
       }
       throw new Error(message);
     }
 
     const data = await response.json();
-    const content =
-      data.choices &&
-      data.choices[0] &&
-      data.choices[0].message &&
-      data.choices[0].message.content
-        ? data.choices[0].message.content
-        : "";
+
+    const content = (() => {
+      if (resolvedProvider === CHAT_PROVIDERS.anthropic) return extractTextFromAnthropicResponse(data);
+      if (resolvedProvider === CHAT_PROVIDERS.gemini) return extractTextFromGeminiResponse(data);
+      if (resolvedProvider === CHAT_PROVIDERS.ollama) return extractTextFromOllamaResponse(data);
+      return extractTextFromOpenAiLikeResponse(data);
+    })();
 
     if (!content) {
       throw new Error("Empty or unexpected API response.");
@@ -2246,12 +2542,18 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function generatePlan({ silent } = {}) {
+    const provider = getSelectedProvider();
     const apiKey = sanitizeApiKey(apiKeyInput.value);
     apiKeyInput.value = apiKey;
+    const baseUrl = getBaseUrl();
     const model = modelSelect.value;
-    if (!apiKey || !model) {
+
+    const needsKey = provider !== CHAT_PROVIDERS.ollama;
+    const needsBaseUrl = provider === CHAT_PROVIDERS.ollama;
+
+    if (!model || (needsKey && !apiKey) || (needsBaseUrl && !baseUrl)) {
       if (!silent) {
-        statusEl.textContent = "Please provide API key and model before generating a plan.";
+        statusEl.textContent = "Please provide provider settings (API key / base URL) and select a model before generating a plan.";
         statusEl.classList.add("error");
       }
       return null;
@@ -2302,7 +2604,7 @@ document.addEventListener("DOMContentLoaded", () => {
       planBtn.disabled = true;
       regeneratePlanBtn.disabled = true;
       endProgress = startProgress(length);
-      const content = await callChat(body, apiKey);
+      const content = await callChatProvider({ provider, model, apiKey, baseUrl, body });
       planEditor.value = content.trim();
       markStep(1);
       statusEl.textContent = "Plan ready. Review or edit before generating.";
@@ -2337,10 +2639,18 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.textContent = "";
       statusEl.classList.remove("error", "loading");
 
+      const provider = getSelectedProvider();
       const apiKey = sanitizeApiKey(apiKeyInput.value);
       apiKeyInput.value = apiKey;
-      if (!apiKey) {
-        statusEl.textContent = "Please provide your OpenRouter API key in the settings menu.";
+      const baseUrl = getBaseUrl();
+
+      const needsKey = provider !== CHAT_PROVIDERS.ollama;
+      const needsBaseUrl = provider === CHAT_PROVIDERS.ollama;
+
+      if ((needsKey && !apiKey) || (needsBaseUrl && !baseUrl)) {
+        statusEl.textContent = needsBaseUrl
+          ? "Please provide your Ollama base URL in the settings menu."
+          : "Please provide your API key in the settings menu.";
         statusEl.classList.add("error");
         if (menuPanel) {
           menuPanel.classList.add("open");
@@ -2434,9 +2744,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const tocEnabled = mode === "strict-seo" || (tocCheckbox && tocCheckbox.checked);
 
         if (tocEnabled) {
-          statusEl.textContent = "TOC enabled. Contacting OpenRouter...";
+          statusEl.textContent = `TOC enabled. Contacting ${getSelectedProvider()}...`;
         } else {
-          statusEl.textContent = "Contacting OpenRouter...";
+          statusEl.textContent = `Contacting ${getSelectedProvider()}...`;
         }
         statusEl.classList.add("loading");
         statusEl.classList.remove("error");
@@ -2444,7 +2754,7 @@ document.addEventListener("DOMContentLoaded", () => {
         endProgress = startProgress(length);
         statusEl.textContent = `${statusEl.textContent} ETA ${etaLabel ? etaLabel.textContent : "~"}`;
 
-        const content = await callChat(body, apiKey);
+        const content = await callChatProvider({ provider, model, apiKey, baseUrl, body });
 
         articleMarkdown = content;
         outputArea.value = articleMarkdown;
@@ -2580,7 +2890,7 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.classList.add("loading");
 
       endProgress = startProgress("short");
-      const raw = await callChat(body, apiKey);
+      const raw = await callChatProvider({ provider: getSelectedProvider(), model, apiKey, baseUrl: getBaseUrl(), body });
       const metadata = parseMetadataResponse(raw);
       renderMetadata(metadata);
       statusEl.textContent = "Metadata ready.";
@@ -2611,10 +2921,18 @@ document.addEventListener("DOMContentLoaded", () => {
     statusEl.textContent = "";
     statusEl.classList.remove("error", "loading");
 
+    const provider = getSelectedProvider();
     const apiKey = sanitizeApiKey(apiKeyInput.value);
     apiKeyInput.value = apiKey;
-    if (!apiKey) {
-      statusEl.textContent = "Please provide your OpenRouter API key in the settings menu.";
+    const baseUrl = getBaseUrl();
+
+    const needsKey = provider !== CHAT_PROVIDERS.ollama;
+    const needsBaseUrl = provider === CHAT_PROVIDERS.ollama;
+
+    if ((needsKey && !apiKey) || (needsBaseUrl && !baseUrl)) {
+      statusEl.textContent = needsBaseUrl
+        ? "Please provide your Ollama base URL in the settings menu."
+        : "Please provide your API key in the settings menu.";
       statusEl.classList.add("error");
       return;
     }
@@ -2680,14 +2998,14 @@ document.addEventListener("DOMContentLoaded", () => {
         generateImagePromptsBtn.disabled = true;
         generateImagePromptsBtn.textContent = "Generating...";
       }
-      statusEl.textContent = "Contacting OpenRouter...";
+      statusEl.textContent = `Contacting ${getSelectedProvider()}...`;
       statusEl.classList.remove("error");
       statusEl.classList.add("loading");
 
       endProgress = startProgress("short");
       statusEl.textContent = "Generating image prompts...";
 
-      const content = await callChat(body, apiKey);
+      const content = await callChatProvider({ provider, model, apiKey, baseUrl, body });
 
       imagePromptsMarkdown = content.trim();
       statusEl.textContent = "Image prompts generated. Available in Export.";
@@ -2717,10 +3035,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function regenerateSelection({ changeTone = false } = {}) {
     if (!outputArea) return;
+    const provider = getSelectedProvider();
     const apiKey = sanitizeApiKey(apiKeyInput.value);
     apiKeyInput.value = apiKey;
-    if (!apiKey) {
-      statusEl.textContent = "API key required to regenerate.";
+    const baseUrl = getBaseUrl();
+
+    const needsKey = provider !== CHAT_PROVIDERS.ollama;
+    const needsBaseUrl = provider === CHAT_PROVIDERS.ollama;
+
+    if ((needsKey && !apiKey) || (needsBaseUrl && !baseUrl)) {
+      statusEl.textContent = needsBaseUrl
+        ? "Ollama base URL required to regenerate."
+        : "API key required to regenerate.";
       statusEl.classList.add("error");
       return;
     }

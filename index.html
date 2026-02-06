@@ -46,17 +46,43 @@
       <section class="settings-section">
         <h3 class="settings-heading">Identity &amp; security</h3>
 
+        <label class="field-label" for="providerSelect">
+          Provider
+          <span class="field-help">Choose where requests are sent (BYOK).</span>
+        </label>
+        <select id="providerSelect" class="field-input">
+          <option value="openrouter" selected>OpenRouter</option>
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="gemini">Gemini (AI Studio)</option>
+          <option value="ollama">Ollama (local)</option>
+        </select>
+
         <label class="field-label" for="apiKey">
-          OpenRouter API key
-          <span class="field-help">Stored only in your browser if you choose so.</span>
+          <span id="apiKeyLabelText">API key</span>
+          <span class="field-help" id="apiKeyHelpText">Stored only in your browser if you choose so.</span>
         </label>
         <input
           type="password"
           id="apiKey"
           class="field-input"
-          placeholder="sk-or-..."
+          placeholder="sk-..."
           autocomplete="off"
         >
+
+        <div id="ollamaBaseUrlRow" class="hidden">
+          <label class="field-label" for="ollamaBaseUrl">
+            Ollama base URL
+            <span class="field-help">Default: http://localhost:11434</span>
+          </label>
+          <input
+            type="url"
+            id="ollamaBaseUrl"
+            class="field-input"
+            placeholder="http://localhost:11434"
+            autocomplete="off"
+          >
+        </div>
 
         <label class="checkbox-row">
           <input type="checkbox" id="rememberKey">
@@ -86,7 +112,7 @@
 
         <label class="field-label" for="modelSelect">
           Default model
-          <span class="field-help">
+          <span class="field-help" id="modelHelpText">
             Enter your API key to load available models directly from OpenRouter.
           </span>
         </label>        <div class="model-row">

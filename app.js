@@ -12,16 +12,24 @@ const CHAT_PROVIDERS = {
 // Curated model ids (kept small on purpose so the app stays simple).
 const CURATED_MODELS = {
   openai: [
+    { id: "gpt-4.1-mini", label: "gpt-4.1-mini" },
     { id: "gpt-4o-mini", label: "gpt-4o-mini" },
     { id: "gpt-4o", label: "gpt-4o" }
   ],
   anthropic: [
-    { id: "claude-3-5-sonnet-latest", label: "claude-3-5-sonnet-latest" },
-    { id: "claude-3-5-haiku-latest", label: "claude-3-5-haiku-latest" }
+    { id: "claude-3-5-sonnet-20241022", label: "claude-3-5-sonnet" },
+    { id: "claude-3-5-haiku-20241022", label: "claude-3-5-haiku" },
+    { id: "claude-3-opus-20240229", label: "claude-3-opus" }
   ],
   gemini: [
     { id: "gemini-1.5-flash", label: "gemini-1.5-flash" },
-    { id: "gemini-1.5-pro", label: "gemini-1.5-pro" }
+    { id: "gemini-1.5-pro", label: "gemini-1.5-pro" },
+    { id: "gemini-2.0-flash", label: "gemini-2.0-flash" }
+  ],
+  ollama: [
+    { id: "llama3.1:8b", label: "llama3.1:8b" },
+    { id: "qwen2.5:7b", label: "qwen2.5:7b" },
+    { id: "mistral:7b", label: "mistral:7b" }
   ]
 };
 
@@ -628,54 +636,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* ---------- Init from localStorage ---------- */
 
-  function hydrateApiKeyFromStorage() {
-    if (!apiKeyInput || isAnonymous) return;
-    const raw = window.localStorage.getItem(STORAGE_KEY_API_GENERIC) || window.localStorage.getItem(STORAGE_KEY_API);
-    if (!raw) {
-      return;
-    }
-
-    try {
-      const payload = JSON.parse(raw);
-      encryptedKeyPayload = payload;
-      if (rememberKeyCheckbox) {
-        rememberKeyCheckbox.checked = true;
-      }
-
-      if (payload.method === "base64") {
-        const key = base64Decode(payload.cipher);
-        apiKeyInput.value = key;
-        refreshModelOptions({ force: true }).catch(() => {
-          // refreshModelOptions handles status/UI
-        });
-        return;
-      }
-
-      if (payload.method === "xor") {
-        const password = masterPasswordInput ? masterPasswordInput.value : "";
-        if (password) {
-          const key = xorDecrypt(payload.cipher, password);
-          apiKeyInput.value = key;
-          refreshModelOptions({ force: true }).catch(() => {
-            // refreshModelOptions handles status/UI
-          });
-        } else if (statusEl) {
-          statusEl.textContent = "Enter your master password to unlock the API key.";
-          statusEl.classList.add("error");
-        }
-      }
-    } catch (err) {
-      console.error("hydrateApiKeyFromStorage error", err);
-      window.localStorage.removeItem(STORAGE_KEY_API);
-    }
-  }
-
   historyCache = loadHistoryFromStorage();
   renderHistory();
-  hydrateApiKeyFromStorage();
-  refreshModelOptions({ force: false }).catch(() => {
-    // refreshModelOptions handles status/UI
-  });
+  // Provider-specific settings (including API keys / models) are hydrated below.
   showWelcomeIfNeeded();
 
   /* ---------- Theme toggle ---------- */
@@ -711,6 +674,65 @@ document.addEventListener("DOMContentLoaded", () => {
     return CHAT_PROVIDERS[next] || CHAT_PROVIDERS.openrouter;
   }
 
+  function loadProviderConfigs() {
+    if (isAnonymous) return {};
+    const raw = window.localStorage.getItem(STORAGE_KEY_PROVIDER_CONFIGS);
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (err) {
+      console.warn("Unable to parse provider configs:", err);
+      return {};
+    }
+  }
+
+  function persistProviderConfigs(configs) {
+    if (isAnonymous) return;
+    setItemGuarded(STORAGE_KEY_PROVIDER_CONFIGS, JSON.stringify(configs || {}));
+  }
+
+  function getProviderConfig(provider) {
+    const configs = loadProviderConfigs();
+    const value = configs[provider];
+    return value && typeof value === "object" ? value : {};
+  }
+
+  function setProviderConfig(provider, partial) {
+    const normalized = normalizeProvider(provider);
+    const configs = loadProviderConfigs();
+    const current = configs[normalized] && typeof configs[normalized] === "object" ? configs[normalized] : {};
+    configs[normalized] = { ...current, ...(partial || {}) };
+    persistProviderConfigs(configs);
+  }
+
+  function migrateLegacyProviderStorageIfNeeded() {
+    if (isAnonymous) return;
+    const existing = window.localStorage.getItem(STORAGE_KEY_PROVIDER_CONFIGS);
+    if (existing) return;
+
+    const legacyKeyRaw = window.localStorage.getItem(STORAGE_KEY_API) || window.localStorage.getItem(STORAGE_KEY_API_GENERIC);
+    const legacyModel = window.localStorage.getItem(STORAGE_KEY_MODEL);
+
+    if (!legacyKeyRaw && !legacyModel) return;
+
+    try {
+      const payload = legacyKeyRaw ? JSON.parse(legacyKeyRaw) : null;
+      const next = {
+        openrouter: {
+          ...(payload ? { apiKey: payload } : {}),
+          ...(legacyModel ? { model: legacyModel } : {})
+        }
+      };
+      window.localStorage.setItem(STORAGE_KEY_PROVIDER_CONFIGS, JSON.stringify(next));
+      if (!window.localStorage.getItem(STORAGE_KEY_PROVIDER)) {
+        window.localStorage.setItem(STORAGE_KEY_PROVIDER, CHAT_PROVIDERS.openrouter);
+      }
+    } catch (err) {
+      console.warn("Legacy migration failed:", err);
+    }
+  }
+
   function getSelectedProvider() {
     const fromUi = providerSelect ? normalizeProvider(providerSelect.value) : "";
     if (fromUi) return fromUi;
@@ -718,26 +740,195 @@ document.addEventListener("DOMContentLoaded", () => {
     return normalizeProvider(window.localStorage.getItem(STORAGE_KEY_PROVIDER));
   }
 
-  function getBaseUrl() {
-    const fromUi = baseUrlInput ? (baseUrlInput.value || "").trim() : "";
-    if (fromUi) return fromUi;
-    if (isAnonymous) return "";
-    return (window.localStorage.getItem(STORAGE_KEY_BASE_URL) || "").trim();
+  function persistSelectedProvider(provider) {
+    if (isAnonymous) return;
+    setItemGuarded(STORAGE_KEY_PROVIDER, normalizeProvider(provider));
   }
 
+  function getOllamaBaseUrl() {
+    const fromUi = ollamaBaseUrlInput ? (ollamaBaseUrlInput.value || "").trim() : "";
+    if (fromUi) return fromUi;
+
+    const stored = getProviderConfig(CHAT_PROVIDERS.ollama)?.baseUrl;
+    if (stored) return String(stored).trim();
+
+    // Transitional legacy key.
+    if (!isAnonymous) {
+      const legacy = (window.localStorage.getItem(STORAGE_KEY_BASE_URL) || "").trim();
+      if (legacy) return legacy;
+    }
+
+    return OLLAMA_DEFAULT_BASE_URL;
+  }
+
+  // Backward-compatible helper used throughout the app.
+  function getBaseUrl() {
+    const provider = getSelectedProvider();
+    return provider === CHAT_PROVIDERS.ollama ? getOllamaBaseUrl() : "";
+  }
+
+  function setOllamaBaseUrl(value) {
+    const next = (value || "").trim() || OLLAMA_DEFAULT_BASE_URL;
+    if (ollamaBaseUrlInput) ollamaBaseUrlInput.value = next;
+    setProviderConfig(CHAT_PROVIDERS.ollama, { baseUrl: next });
+    // Transitional legacy key.
+    if (!isAnonymous) setItemGuarded(STORAGE_KEY_BASE_URL, next);
+  }
+
+  // Backward-compatible helper used by import/export.
   function setBaseUrl(value) {
-    const next = (value || "").trim();
-    if (baseUrlInput) baseUrlInput.value = next;
-    if (isAnonymous) return;
-    if (next) setItemGuarded(STORAGE_KEY_BASE_URL, next);
-    else removeItem(STORAGE_KEY_BASE_URL);
+    const provider = getSelectedProvider();
+    if (provider !== CHAT_PROVIDERS.ollama) return;
+    setOllamaBaseUrl(value);
   }
 
   function applyProviderUi(provider) {
-    const isOllama = provider === CHAT_PROVIDERS.ollama;
-    if (baseUrlRow) baseUrlRow.classList.toggle("hidden", !isOllama);
+    const normalized = normalizeProvider(provider);
+    const meta = {
+      openrouter: {
+        label: "OpenRouter API key",
+        placeholder: "sk-or-...",
+        help: "Stored only in your browser if you choose so.",
+        modelHelp: "Enter your API key to load available models directly from OpenRouter."
+      },
+      openai: {
+        label: "OpenAI API key",
+        placeholder: "sk-...",
+        help: "Stored only in your browser if you choose so.",
+        modelHelp: "Choose a model for OpenAI."
+      },
+      anthropic: {
+        label: "Anthropic API key",
+        placeholder: "sk-ant-...",
+        help: "Stored only in your browser if you choose so.",
+        modelHelp: "Choose a Claude model."
+      },
+      gemini: {
+        label: "Gemini API key (AI Studio)",
+        placeholder: "AIza...",
+        help: "Stored only in your browser if you choose so.",
+        modelHelp: "Choose a Gemini model."
+      },
+      ollama: {
+        label: "API key (not required for Ollama)",
+        placeholder: "(not required)",
+        help: "Ollama runs locally; no API key is needed.",
+        modelHelp: "Choose a local Ollama model."
+      }
+    };
+
+    const m = meta[normalized] || meta.openrouter;
+
+    if (apiKeyLabelText) apiKeyLabelText.textContent = m.label;
+    if (apiKeyInput) apiKeyInput.placeholder = m.placeholder;
+    if (apiKeyHelpText) apiKeyHelpText.textContent = m.help;
+    if (modelHelpText) modelHelpText.textContent = m.modelHelp;
+
+    const isOllama = normalized === CHAT_PROVIDERS.ollama;
+    if (ollamaBaseUrlRow) ollamaBaseUrlRow.classList.toggle("hidden", !isOllama);
     if (reloadModelsBtn) {
-      reloadModelsBtn.classList.toggle("hidden", provider !== CHAT_PROVIDERS.openrouter);
+      reloadModelsBtn.classList.toggle("hidden", normalized !== CHAT_PROVIDERS.openrouter);
+    }
+
+    updateReloadModelsButton();
+  }
+
+  function decodeStoredApiKey(payload) {
+    if (!payload || typeof payload !== "object") return "";
+
+    if (payload.method === "base64") {
+      return base64Decode(payload.cipher);
+    }
+
+    if (payload.method === "xor") {
+      const password = masterPasswordInput ? masterPasswordInput.value : "";
+      if (!password) {
+        if (statusEl) {
+          statusEl.textContent = "Enter your master password to unlock the API key.";
+          statusEl.classList.add("error");
+        }
+        return "";
+      }
+      return xorDecrypt(payload.cipher, password);
+    }
+
+    return "";
+  }
+
+  function hydrateProviderFromStorage(provider) {
+    if (isAnonymous) return;
+
+    encryptedKeyPayload = null;
+    if (apiKeyInput) apiKeyInput.value = "";
+
+    const config = getProviderConfig(provider);
+    const payload = config.apiKey;
+
+    if (rememberKeyCheckbox) {
+      rememberKeyCheckbox.checked = !!payload;
+    }
+
+    if (payload && apiKeyInput) {
+      encryptedKeyPayload = payload;
+      const key = decodeStoredApiKey(payload);
+      if (key) apiKeyInput.value = key;
+    }
+
+    if (provider === CHAT_PROVIDERS.ollama) {
+      const baseUrl = (config.baseUrl || "").trim() || OLLAMA_DEFAULT_BASE_URL;
+      if (ollamaBaseUrlInput) ollamaBaseUrlInput.value = baseUrl;
+    }
+
+    const storedModel = config.model;
+    if (storedModel && modelSelect) {
+      modelSelect.value = storedModel;
+    }
+  }
+
+  function persistApiKeyForProvider(provider, key) {
+    const normalized = normalizeProvider(provider);
+
+    if (isAnonymous) {
+      removeItem(STORAGE_KEY_API);
+      removeItem(STORAGE_KEY_API_GENERIC);
+      removeItem(STORAGE_KEY_PROVIDER_CONFIGS);
+      return;
+    }
+
+    if (!rememberKeyCheckbox || !rememberKeyCheckbox.checked) {
+      const configs = loadProviderConfigs();
+      if (configs[normalized]) {
+        delete configs[normalized].apiKey;
+        persistProviderConfigs(configs);
+      }
+      if (normalized === CHAT_PROVIDERS.openrouter) {
+        removeItem(STORAGE_KEY_API);
+        removeItem(STORAGE_KEY_API_GENERIC);
+      }
+      return;
+    }
+
+    const password = masterPasswordInput ? masterPasswordInput.value.trim() : "";
+    const payload = password
+      ? { method: "xor", cipher: xorEncrypt(key, password) }
+      : { method: "base64", cipher: base64Encode(key) };
+
+    encryptedKeyPayload = payload;
+    setProviderConfig(normalized, { apiKey: payload });
+
+    // Backward compatible storage for OpenRouter only.
+    if (normalized === CHAT_PROVIDERS.openrouter) {
+      setItemGuarded(STORAGE_KEY_API_GENERIC, JSON.stringify(payload));
+      setItemGuarded(STORAGE_KEY_API, JSON.stringify(payload));
+    }
+  }
+
+  function persistModelForProvider(provider, model) {
+    const normalized = normalizeProvider(provider);
+    setProviderConfig(normalized, { model });
+    // Backward compatible storage for older versions.
+    if (!isAnonymous && normalized === CHAT_PROVIDERS.openrouter) {
+      setItemGuarded(STORAGE_KEY_MODEL, model);
     }
   }
 
@@ -756,98 +947,70 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Static curated models (no network call).
     const curated = CURATED_MODELS[provider] || [];
     populateModelOptions(curated.map((m) => ({ id: m.id, name: m.label })));
     if (statusEl) {
       statusEl.classList.remove("error", "loading");
-      statusEl.textContent = curated.length ? "Models ready." : "Enter a model name manually.";
+      statusEl.textContent = curated.length ? "Models ready." : "Select a provider model.";
+    }
+
+    if (modelSelect) {
+      modelSelect.disabled = false;
     }
   }
 
   function setProvider(value) {
     const next = normalizeProvider(value);
     if (providerSelect) providerSelect.value = next;
-    if (!isAnonymous) setItemGuarded(STORAGE_KEY_PROVIDER, next);
+    persistSelectedProvider(next);
+
+    // Hydrate provider-specific fields.
+    hydrateProviderFromStorage(next);
     refreshModelOptions({ force: true }).catch(() => {
       // refreshModelOptions handles status/UI
     });
   }
 
-  prefersDark.addEventListener("change", () => {
-    if (isAnonymous) return;
-    const stored = window.localStorage.getItem(STORAGE_KEY_THEME);
-    if (!stored) applyTheme(resolveTheme());
-  });
+  migrateLegacyProviderStorageIfNeeded();
 
-  if (themeToggle) {
-    themeToggle.addEventListener("click", () => {
-      const nextTheme = resolveTheme() === "light" ? "dark" : "light";
-      applyTheme(nextTheme);
-      persistTheme(nextTheme);
-    });
-  }
-
-  const storedProvider = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_PROVIDER) : null;
   if (providerSelect) {
+    const storedProvider = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_PROVIDER) : null;
     providerSelect.value = normalizeProvider(storedProvider);
     providerSelect.addEventListener("change", () => setProvider(providerSelect.value));
   }
 
-  const storedBaseUrl = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_BASE_URL) : null;
-  if (baseUrlInput) {
-    baseUrlInput.value = (storedBaseUrl || "").trim();
-    baseUrlInput.addEventListener("change", () => setBaseUrl(baseUrlInput.value));
+  if (ollamaBaseUrlInput) {
+    ollamaBaseUrlInput.value = getOllamaBaseUrl();
+    ollamaBaseUrlInput.addEventListener("change", () => setOllamaBaseUrl(ollamaBaseUrlInput.value));
   }
 
+  // Initial provider hydrate.
   applyProviderUi(getSelectedProvider());
-
-  const storedModel = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_MODEL) : null;
-  if (storedModel && modelSelect) {
-    modelSelect.value = storedModel;
-  }
+  hydrateProviderFromStorage(getSelectedProvider());
 
   if (modelSelect) {
     modelSelect.addEventListener("change", () => {
-      setItemGuarded(STORAGE_KEY_MODEL, modelSelect.value);
+      persistModelForProvider(getSelectedProvider(), modelSelect.value);
     });
-  }
-
-  function persistApiKey(key) {
-    if (isAnonymous) {
-      removeItem(STORAGE_KEY_API);
-      removeItem(STORAGE_KEY_API_GENERIC);
-      return;
-    }
-
-    if (!rememberKeyCheckbox || !rememberKeyCheckbox.checked) {
-      removeItem(STORAGE_KEY_API);
-      removeItem(STORAGE_KEY_API_GENERIC);
-      return;
-    }
-
-    const password = masterPasswordInput ? masterPasswordInput.value.trim() : "";
-    const payload = password
-      ? { method: "xor", cipher: xorEncrypt(key, password) }
-      : { method: "base64", cipher: base64Encode(key) };
-
-    encryptedKeyPayload = payload;
-    setItemGuarded(STORAGE_KEY_API_GENERIC, JSON.stringify(payload));
-    // Backward-compatible key (older versions only knew OpenRouter).
-    setItemGuarded(STORAGE_KEY_API, JSON.stringify(payload));
   }
 
   if (apiKeyInput) {
     apiKeyInput.addEventListener("change", () => {
+      const provider = getSelectedProvider();
+      const requiresKey = provider !== CHAT_PROVIDERS.ollama;
       const key = sanitizeApiKey(apiKeyInput.value);
       apiKeyInput.value = key;
-      if (!key) {
+
+      if (!key && requiresKey) {
         clearModelOptions();
-        removeItem(STORAGE_KEY_API);
-        removeItem(STORAGE_KEY_API_GENERIC);
+        persistApiKeyForProvider(provider, "");
         return;
       }
-      persistApiKey(key);
+
+      if (requiresKey && key) {
+        persistApiKeyForProvider(provider, key);
+      }
+
       refreshModelOptions({ force: true }).catch(() => {
         // refreshModelOptions handles status/UI
       });
@@ -856,17 +1019,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (rememberKeyCheckbox) {
     rememberKeyCheckbox.addEventListener("change", () => {
-      const key = sanitizeApiKey(apiKeyInput.value);
-      apiKeyInput.value = key;
+      const provider = getSelectedProvider();
+      const key = sanitizeApiKey(apiKeyInput ? apiKeyInput.value : "");
       if (!key) {
-        removeItem(STORAGE_KEY_API);
+        persistApiKeyForProvider(provider, "");
         return;
       }
-      if (rememberKeyCheckbox.checked) {
-        persistApiKey(key);
-      } else {
-        removeItem(STORAGE_KEY_API);
-      }
+      persistApiKeyForProvider(provider, key);
     });
   }
 
@@ -891,7 +1050,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (reloadModelsBtn) {
     reloadModelsBtn.addEventListener("click", () => {
-      scheduleModelsReload({ force: true });
+      refreshModelOptions({ force: true }).catch(() => {
+        // refreshModelOptions handles status/UI
+      });
     });
   }
 
@@ -901,24 +1062,37 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // If the API key is set programmatically (apiKeyInput.value = ...),
-    // poll for changes and auto-refresh models.
+    // poll for changes and auto-refresh models (OpenRouter only).
     window.setInterval(() => {
+      const provider = getSelectedProvider();
       const nextKey = sanitizeApiKey(apiKeyInput.value);
       if (nextKey === lastObservedApiKey) return;
       lastObservedApiKey = nextKey;
       updateReloadModelsButton();
-      scheduleModelsReload();
+      if (provider === CHAT_PROVIDERS.openrouter) {
+        scheduleModelsReload();
+      }
     }, 800);
   }
 
-  updateReloadModelsButton();
+  refreshModelOptions({ force: false }).catch(() => {
+    // refreshModelOptions handles status/UI
+  });
 
   /* ---------- Welcome overlay ---------- */
 
   function hasStoredApiKey() {
+    const provider = getSelectedProvider();
+    if (provider === CHAT_PROVIDERS.ollama) return true;
+
     const inputKey = apiKeyInput ? sanitizeApiKey(apiKeyInput.value) : "";
     if (inputKey) return true;
     if (isAnonymous) return false;
+
+    const config = getProviderConfig(provider);
+    if (config && config.apiKey) return true;
+
+    // Legacy OpenRouter-only storage.
     const raw = window.localStorage.getItem(STORAGE_KEY_API_GENERIC) || window.localStorage.getItem(STORAGE_KEY_API);
     return !!raw;
   }
@@ -1103,8 +1277,11 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       historyCache = loadHistoryFromStorage();
       renderHistory();
-      hydrateApiKeyFromStorage();
       applyTheme(resolveTheme());
+      hydrateProviderFromStorage(getSelectedProvider());
+      refreshModelOptions({ force: true }).catch(() => {
+        // refreshModelOptions handles status/UI
+      });
       persistGenerationOptions(generationOptions);
     }
     showWelcomeIfNeeded();
@@ -2149,13 +2326,27 @@ document.addEventListener("DOMContentLoaded", () => {
       version: "0.9.3",
       preferences: {
         theme: resolveTheme(),
+        provider: getSelectedProvider ? getSelectedProvider() : CHAT_PROVIDERS.openrouter,
+        baseUrl: getBaseUrl ? getBaseUrl() : "",
         model: modelSelect ? modelSelect.value : "",
         preset: presetSelect ? presetSelect.value : "",
         anonymousMode: !!(anonymousModeCheckbox && anonymousModeCheckbox.checked),
         expertMode: !!(expertToggle && expertToggle.checked),
         temperature: temperatureInput ? Number(temperatureInput.value) : 0.7,
         maxTokens: maxTokensInput ? Number(maxTokensInput.value) : 2048,
-        topP: topPInput ? Number(topPInput.value) : 1
+        topP: topPInput ? Number(topPInput.value) : 1,
+        providerDefaults: (() => {
+          const configs = loadProviderConfigs ? loadProviderConfigs() : {};
+          const redacted = {};
+          Object.entries(configs).forEach(([key, value]) => {
+            if (!value || typeof value !== "object") return;
+            redacted[key] = {
+              model: value.model || "",
+              baseUrl: value.baseUrl || ""
+            };
+          });
+          return redacted;
+        })()
       },
       history: historyCache
     };
@@ -2184,8 +2375,16 @@ document.addEventListener("DOMContentLoaded", () => {
       persistTheme(prefs.theme);
     }
 
+    if (prefs.provider) {
+      setProvider(prefs.provider);
+    }
+    if (prefs.baseUrl !== undefined) {
+      setBaseUrl(prefs.baseUrl);
+    }
+
     if (modelSelect && prefs.model) {
       modelSelect.value = prefs.model;
+      persistModelForProvider(getSelectedProvider(), prefs.model);
     }
 
     if (Array.isArray(config.history)) {
@@ -2834,10 +3033,18 @@ document.addEventListener("DOMContentLoaded", () => {
     statusEl.textContent = "";
     statusEl.classList.remove("error", "loading");
 
+    const provider = getSelectedProvider();
     const apiKey = sanitizeApiKey(apiKeyInput.value);
     apiKeyInput.value = apiKey;
-    if (!apiKey) {
-      statusEl.textContent = "Please provide your OpenRouter API key in the settings menu.";
+    const baseUrl = getBaseUrl();
+
+    const needsKey = provider !== CHAT_PROVIDERS.ollama;
+    const needsBaseUrl = provider === CHAT_PROVIDERS.ollama;
+
+    if ((needsKey && !apiKey) || (needsBaseUrl && !baseUrl)) {
+      statusEl.textContent = needsBaseUrl
+        ? "Please provide your Ollama base URL in the settings menu."
+        : "Please provide your API key in the settings menu.";
       statusEl.classList.add("error");
       return;
     }
@@ -3097,7 +3304,13 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.textContent = "Regenerating selection...";
       statusEl.classList.remove("error");
       statusEl.classList.add("loading");
-      const replacement = await callChat(body, apiKey);
+      const replacement = await callChatProvider({
+        provider,
+        model: modelSelect.value,
+        apiKey,
+        baseUrl,
+        body
+      });
       const newValue = `${outputArea.value.slice(0, start)}${replacement.trim()}${outputArea.value.slice(end)}`;
       outputArea.value = newValue;
       articleMarkdown = newValue;

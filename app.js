@@ -152,6 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const masterPasswordInput = document.getElementById("masterPassword");
   const anonymousModeCheckbox = document.getElementById("anonymousMode");
   const modelSelect = document.getElementById("modelSelect");
+  const reloadModelsBtn = document.getElementById("reloadModelsBtn");
   const resetStorageBtn = document.getElementById("resetStorageBtn");
 
   const seoForm = document.getElementById("seoForm");
@@ -273,6 +274,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let articleMarkdown = "";
   let imagePromptsMarkdown = "";
   let lastKeyword = "";
+
+  let lastObservedApiKey = "";
+  let lastModelsLoadedKey = "";
+  let reloadModelsTimer = null;
 
   function setItemGuarded(key, value) {
     if (isAnonymous) return;
@@ -410,6 +415,38 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
       .replace(/[^\x20-\x7E]/g, "")
       .trim();
+  }
+
+  function looksLikeOpenRouterKey(key) {
+    const value = sanitizeApiKey(key);
+    if (!value) return false;
+    // OpenRouter keys are typically long and start with "sk-", but allow other formats.
+    if (value.startsWith("sk-") && value.length >= 24) return true;
+    return value.length >= 24;
+  }
+
+  function updateReloadModelsButton() {
+    if (!reloadModelsBtn) return;
+    const key = apiKeyInput ? sanitizeApiKey(apiKeyInput.value) : "";
+    reloadModelsBtn.disabled = !looksLikeOpenRouterKey(key);
+  }
+
+  function scheduleModelsReload({ force = false } = {}) {
+    const key = apiKeyInput ? sanitizeApiKey(apiKeyInput.value) : "";
+    updateReloadModelsButton();
+    if (!looksLikeOpenRouterKey(key)) return;
+    if (!force && key && key === lastModelsLoadedKey) return;
+
+    if (reloadModelsTimer) {
+      window.clearTimeout(reloadModelsTimer);
+    }
+
+    reloadModelsTimer = window.setTimeout(() => {
+      reloadModelsTimer = null;
+      fetchAndPopulateModels(key, { force }).catch(() => {
+        // fetchAndPopulateModels handles status/UI
+      });
+    }, 350);
   }
 
   function xorEncrypt(text, password) {
@@ -700,6 +737,30 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  if (reloadModelsBtn) {
+    reloadModelsBtn.addEventListener("click", () => {
+      scheduleModelsReload({ force: true });
+    });
+  }
+
+  if (apiKeyInput) {
+    apiKeyInput.addEventListener("input", () => {
+      updateReloadModelsButton();
+    });
+
+    // If the API key is set programmatically (apiKeyInput.value = ...),
+    // poll for changes and auto-refresh models.
+    window.setInterval(() => {
+      const nextKey = sanitizeApiKey(apiKeyInput.value);
+      if (nextKey === lastObservedApiKey) return;
+      lastObservedApiKey = nextKey;
+      updateReloadModelsButton();
+      scheduleModelsReload();
+    }, 800);
+  }
+
+  updateReloadModelsButton();
 
   /* ---------- Welcome overlay ---------- */
 
@@ -1418,7 +1479,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* ---------- Load models from OpenRouter ---------- */
 
-  async function fetchAndPopulateModels(apiKey) {
+  async function fetchAndPopulateModels(apiKey, { force = false } = {}) {
     if (!modelSelect) return;
 
     const sanitizedKey = sanitizeApiKey(apiKey);
@@ -1426,6 +1487,12 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.textContent = "Please provide a valid OpenRouter API key.";
       statusEl.classList.add("error");
       clearModelOptions();
+      updateReloadModelsButton();
+      return;
+    }
+
+    if (!force && sanitizedKey === lastModelsLoadedKey) {
+      updateReloadModelsButton();
       return;
     }
 
@@ -1458,6 +1525,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const payload = await response.json();
       const models = Array.isArray(payload?.data) ? payload.data : [];
       populateModelOptions(models);
+      lastModelsLoadedKey = sanitizedKey;
+      updateReloadModelsButton();
       statusEl.classList.remove("loading");
       statusEl.textContent = models.length
         ? "Models loaded. Choose your preferred model."
@@ -1468,6 +1537,7 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.classList.add("error");
       statusEl.textContent = `Could not load models: ${err.message}`;
       clearModelOptions();
+      updateReloadModelsButton();
     }
   }
 
@@ -1520,6 +1590,8 @@ document.addEventListener("DOMContentLoaded", () => {
     modelSelect.appendChild(placeholder);
     modelSelect.disabled = true;
     removeItem(STORAGE_KEY_MODEL);
+    lastModelsLoadedKey = "";
+    updateReloadModelsButton();
   }
 
   /* ---------- Copy Markdown ---------- */

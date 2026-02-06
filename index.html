@@ -89,12 +89,15 @@
           <span class="field-help">
             Enter your API key to load available models directly from OpenRouter.
           </span>
-        </label>
-        <select id="modelSelect" class="field-input" disabled>
-          <option value="">Enter your API key to load models</option>
-        </select>
-
-        <label class="field-label" for="presetSelect">
+        </label>        <div class="model-row">
+          <select id="modelSelect" class="field-input" disabled>
+            <option value="">Enter your API key to load models</option>
+          </select>
+          <button type="button" id="reloadModelsBtn" class="btn-ghost" disabled>
+            Reload
+          </button>
+        </div>
+<label class="field-label" for="presetSelect">
           Default preset
         </label>
         <select id="presetSelect" class="field-input">

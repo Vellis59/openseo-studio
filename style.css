@@ -340,6 +340,20 @@ body {
   font-size: 0.9rem;
 }
 
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.model-row .field-input {
+  flex: 1;
+}
+
+.model-row #reloadModelsBtn {
+  white-space: nowrap;
+}
+
 .field-input:focus {
   outline: none;
   border-color: var(--accent);

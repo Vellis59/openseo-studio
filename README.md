@@ -5,7 +5,7 @@ OpenSEO Studio is a **fully client-side, static SEO writing tool** powered by AI
 No backend. No database. Bring Your Own API Key (BYOK).  
 Your API key stays in your browser — you keep full control.
 
-This repository contains **OpenSEO Studio v1.1.1**, including split-screen editing, light/dark theme controls, refreshed mobile UX, multilingual SEO output, client-side persistence & security controls, and export-ready actions.
+This repository contains **OpenSEO Studio v1.1.1**, including split-screen editing, light/dark theme controls, refreshed mobile UX, multilingual SEO output, client-side persistence & security controls, and export-ready actions (Markdown + JSON).
 
 ---
 
@@ -29,9 +29,13 @@ When you enter your OpenRouter API key, the app automatically fetches all models
 
 (The model list is dynamically loaded — it may differ for each user)
 
+### ✨ New in v1.1.1
+- **Reload models**: manually reload OpenRouter models + auto-refresh when the API key changes (better for automation).
+- **Export JSON**: download or copy a JSON bundle (keyword + settings + plan/article Markdown + SEO metadata + image prompts).
+
 ### ✨ New in v1.1.0
 - **Image prompts**: generate AI image prompt Markdown separately from article drafts.
-- **Export**: download article-only or article + image prompts.
+- **Export (Markdown)**: download article-only or article + image prompts.
 
 ### ✅ Previously in v1.0.0
 - **About / Manifesto panel** with version, philosophy, and quick links.

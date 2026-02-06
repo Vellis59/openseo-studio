@@ -1654,6 +1654,68 @@ document.addEventListener("DOMContentLoaded", () => {
     statusEl.textContent = `Downloaded ${filename}.`;
   }
 
+  function getExportJsonPayload() {
+    const keyword = keywordInput ? keywordInput.value.trim() : "";
+    const language = languageSelect ? languageSelect.value : "";
+    const tone = toneSelect ? toneSelect.value : "";
+    const length = lengthSelect ? lengthSelect.value : "";
+    const model = modelSelect ? modelSelect.value : "";
+
+    return {
+      app: "openseo-studio",
+      version: (document.querySelector("title")?.textContent || "").trim(),
+      exported_at: new Date().toISOString(),
+      keyword,
+      settings: {
+        language,
+        tone,
+        length,
+        model
+      },
+      plan_markdown: planEditor ? planEditor.value : "",
+      article_markdown: articleMarkdown || (outputArea ? outputArea.value : ""),
+      seo_metadata: {
+        seo_title: lastSeoMetadata?.seo_title || (seoTitleText ? seoTitleText.textContent : ""),
+        meta_description: lastSeoMetadata?.meta_description || (metaDescriptionText ? metaDescriptionText.textContent : ""),
+        secondary_keywords:
+          lastSeoMetadata?.secondary_keywords || (secondaryKeywordsText ? secondaryKeywordsText.textContent : "")
+      },
+      image_prompts_markdown: imagePromptsMarkdown || ""
+    };
+  }
+
+  function downloadExportJson() {
+    const payload = getExportJsonPayload();
+    const keyword = payload.keyword || "article";
+    const slug = slugifyKeyword(keyword);
+    const today = new Date().toISOString().slice(0, 10);
+    const filename = `${slug}-${today}.json`;
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    statusEl.textContent = `Downloaded ${filename}.`;
+  }
+
+  async function copyExportJson() {
+    const payload = getExportJsonPayload();
+    const text = JSON.stringify(payload, null, 2);
+
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      statusEl.textContent = "JSON copied to clipboard.";
+      return;
+    }
+
+    // fallback
+    fallbackCopy(text);
+  }
+
   function openExportMenu() {
     if (!exportMenu || !exportToggleBtn) return;
     exportMenu.classList.add("open");
@@ -1718,6 +1780,14 @@ document.addEventListener("DOMContentLoaded", () => {
         downloadMarkdownWithMode("article");
       } else if (action === "download-article-images") {
         downloadMarkdownWithMode("article+images");
+      } else if (action === "download-json") {
+        downloadExportJson();
+      } else if (action === "copy-json") {
+        copyExportJson().catch((err) => {
+          console.error("copyExportJson error", err);
+          statusEl.textContent = "Could not copy JSON.";
+          statusEl.classList.add("error");
+        });
       } else if (action === "ghost" || action === "wordpress") {
         getExportContent("article");
         openExportModal(action);

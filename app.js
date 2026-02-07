@@ -2836,7 +2836,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function openExportModal(platform) {
-    if (!exportModal || !exportModalTitle || !exportModalSubtitle || !exportModalBody) return;
+    if (!exportModal || !exportModalTitle || !exportModalSubtitle || !exportModalBody) {
+      throw new Error("Export modal elements not found in DOM.");
+    }
 
     if (platform === "wordpress") {
       renderWpExportModal();
@@ -3151,7 +3153,20 @@ document.addEventListener("DOMContentLoaded", () => {
           }
           return;
         }
-        openExportModal(action);
+        try {
+          if (statusEl) {
+            statusEl.classList.remove("error");
+            statusEl.textContent = action === "ghost" ? "Opening Ghost export…" : "Opening WordPress export…";
+          }
+          // Let the export menu close repaint before opening the modal on some browsers.
+          setTimeout(() => openExportModal(action), 0);
+        } catch (err) {
+          console.error("openExportModal error", err);
+          if (statusEl) {
+            statusEl.textContent = `Export UI error: ${String(err?.message || err)}`;
+            statusEl.classList.add("error");
+          }
+        }
       }
     });
   }

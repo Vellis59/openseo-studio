@@ -312,6 +312,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const STORAGE_KEY_GENERATION_OPTIONS = "openseo_generation_options";
   const STORAGE_KEY_WELCOME = "openseo_welcome_dismissed";
 
+  // Ghost export (Admin API)
+  const STORAGE_KEY_GHOST_ADMIN_URL = "openseo_ghost_admin_url";
+  const STORAGE_KEY_GHOST_ADMIN_KEY = "openseo_ghost_admin_key"; // encrypted payload (base64/xor)
+  const STORAGE_KEY_GHOST_REMEMBER = "openseo_ghost_remember";
+
+  // WordPress export (BYOC: stored locally only when not in anonymous mode)
+  const STORAGE_KEY_WP_CONFIG = "openseo_wordpress_config";
+
   const MAX_HISTORY_ITEMS = 20;
   const GENERATION_OPTIONS_DEFAULTS = {
     promptMode: "standard",
@@ -370,7 +378,11 @@ document.addEventListener("DOMContentLoaded", () => {
       STORAGE_KEY_HISTORY,
       STORAGE_KEY_SPEND,
       STORAGE_KEY_GENERATION_OPTIONS,
-      STORAGE_KEY_WELCOME
+      STORAGE_KEY_WELCOME,
+      STORAGE_KEY_GHOST_ADMIN_URL,
+      STORAGE_KEY_GHOST_ADMIN_KEY,
+      STORAGE_KEY_GHOST_REMEMBER,
+      STORAGE_KEY_WP_CONFIG
     ].forEach((key) => {
       window.localStorage.removeItem(key);
     });
@@ -2183,22 +2195,731 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function openExportModal(platform) {
+  function loadWordPressConfig() {
+    if (isAnonymous) return {};
+    const raw = window.localStorage.getItem(STORAGE_KEY_WP_CONFIG);
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (err) {
+      console.warn("Unable to parse WordPress config:", err);
+      return {};
+    }
+  }
+
+  function persistWordPressConfig(config) {
+    if (isAnonymous) return;
+    setItemGuarded(STORAGE_KEY_WP_CONFIG, JSON.stringify(config || {}));
+  }
+
+  function normalizeWpSiteUrl(value) {
+    const trimmed = (value || "").trim();
+    if (!trimmed) return "";
+    return trimmed.replace(/\/+$/, "");
+  }
+
+  function wpApiBase(siteUrl) {
+    const base = normalizeWpSiteUrl(siteUrl);
+    return base ? `${base}/wp-json/wp/v2` : "";
+  }
+
+  function wpAuthHeader(username, applicationPassword) {
+    const user = (username || "").trim();
+    const pass = (applicationPassword || "").trim();
+    const token = base64Encode(`${user}:${pass}`);
+    return `Basic ${token}`;
+  }
+
+  async function wpFetchJson(url, { method = "GET", headers = {}, body } = {}) {
+    const res = await fetch(url, {
+      method,
+      headers: {
+        Accept: "application/json",
+        ...(body ? { "Content-Type": "application/json" } : {}),
+        ...headers
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+
+    // WordPress returns JSON errors; CORS failures throw before this.
+    const text = await res.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch (err) {
+      // Non-JSON response
+    }
+
+    if (!res.ok) {
+      const message = (json && (json.message || json.code)) || text || `HTTP ${res.status}`;
+      const error = new Error(message);
+      error.status = res.status;
+      error.payload = json;
+      throw error;
+    }
+
+    return json;
+  }
+
+  function parseCommaList(value) {
+    if (!value) return [];
+    return value
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+  }
+
+  function slugifyTerm(value) {
+    return slugifyKeyword(value).slice(0, 190);
+  }
+
+  async function ensureWpTerms({ apiBase, authHeader, type, names }) {
+    const unique = Array.from(new Set((names || []).map((n) => n.trim()).filter(Boolean)));
+    if (!unique.length) return [];
+
+    const endpoint = type === "tag" ? "tags" : "categories";
+
+    async function findExisting(name) {
+      const searchUrl = `${apiBase}/${endpoint}?search=${encodeURIComponent(name)}&per_page=100`;
+      const results = await wpFetchJson(searchUrl, {
+        headers: { Authorization: authHeader }
+      });
+      if (!Array.isArray(results)) return null;
+      const lower = name.toLowerCase();
+      return results.find((t) => (t.name || "").toLowerCase() === lower) || null;
+    }
+
+    async function create(name) {
+      const createUrl = `${apiBase}/${endpoint}`;
+      return wpFetchJson(createUrl, {
+        method: "POST",
+        headers: { Authorization: authHeader },
+        body: { name, slug: slugifyTerm(name) }
+      });
+    }
+
+    const ids = [];
+    for (const name of unique) {
+      let term = null;
+      try {
+        term = await findExisting(name);
+      } catch (err) {
+        // Some sites disallow term search; try create and fall back.
+      }
+
+      if (!term) {
+        try {
+          term = await create(name);
+        } catch (err) {
+          // If create fails because it already exists, retry search once.
+          try {
+            term = await findExisting(name);
+          } catch (err2) {
+            throw err;
+          }
+        }
+      }
+
+      if (term && typeof term.id === "number") ids.push(term.id);
+    }
+
+    return ids;
+  }
+
+  function deriveWpTitle() {
+    const payload = getExportJsonPayload();
+    const fromSeoTitle = (payload.seo_metadata?.seo_title || "").trim();
+    if (fromSeoTitle) return fromSeoTitle;
+    const fromContent = deriveHistoryTitle(articleMarkdown || (outputArea ? outputArea.value : ""));
+    return (fromContent || "Untitled").trim();
+  }
+
+  function renderWpExportModal() {
     if (!exportModal || !exportModalTitle || !exportModalSubtitle || !exportModalBody) return;
-    const isGhost = platform === "ghost";
-    exportModalTitle.textContent = isGhost ? "Send to Ghost" : "Send to WordPress";
-    exportModalSubtitle.textContent = "Coming soon";
-    const fields = isGhost
-      ? ["Ghost Admin API URL", "Ghost Admin API key"]
-      : ["Site URL", "Application password"];
+
+    const stored = loadWordPressConfig();
+    const defaultSiteUrl = stored.siteUrl || "";
+    const defaultUsername = stored.username || "";
+    const defaultAppPassword = stored.applicationPassword || "";
+    const defaultRemember = stored.remember !== undefined ? !!stored.remember : true;
+
+    const keyword = keywordInput ? keywordInput.value.trim() : "";
+    const defaultCategories = stored.categories ?? "";
+    const defaultTags = stored.tags ?? (keyword ? keyword : "");
+    const defaultStatus = stored.postStatus || "draft";
+
+    exportModalTitle.textContent = "Send to WordPress";
+    exportModalSubtitle.textContent = "Create a draft or publish via the WP REST API (client-side).";
+
     exportModalBody.innerHTML = `
-      <p class="small-note">Required fields for future integration:</p>
-      <ul class="modal-list">
-        ${fields.map((field) => `<li>${field}</li>`).join("")}
-      </ul>
+      <form class="modal-form" id="wpExportForm">
+        <p class="small-note">
+          Uses <code>Basic Auth</code> with a WordPress <strong>Application Password</strong>.
+          Your credentials stay in your browser (optional).
+        </p>
+
+        <label class="field-label" for="wpSiteUrl">WordPress site URL</label>
+        <input class="field-input" id="wpSiteUrl" type="url" placeholder="https://example.com" required value="${defaultSiteUrl.replace(/"/g, "&quot;")}">
+
+        <div class="grid-2">
+          <div>
+            <label class="field-label" for="wpUsername">Username</label>
+            <input class="field-input" id="wpUsername" type="text" autocomplete="username" required value="${defaultUsername.replace(/"/g, "&quot;")}">
+          </div>
+          <div>
+            <label class="field-label" for="wpAppPassword">Application password</label>
+            <input class="field-input" id="wpAppPassword" type="password" autocomplete="current-password" required value="${defaultAppPassword.replace(/"/g, "&quot;")}">
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <label class="field-label" for="wpPostStatus">Post status</label>
+            <select class="field-input" id="wpPostStatus">
+              <option value="draft" ${defaultStatus === "draft" ? "selected" : ""}>Draft</option>
+              <option value="publish" ${defaultStatus === "publish" ? "selected" : ""}>Publish</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="wpTitle">Title</label>
+            <input class="field-input" id="wpTitle" type="text" value="${deriveWpTitle().replace(/"/g, "&quot;")}">
+          </div>
+        </div>
+
+        <label class="field-label" for="wpCategories">Categories (comma-separated)</label>
+        <input class="field-input" id="wpCategories" type="text" placeholder="SEO, Marketing" value="${String(defaultCategories).replace(/"/g, "&quot;")}">
+
+        <label class="field-label" for="wpTags">Tags (comma-separated)</label>
+        <input class="field-input" id="wpTags" type="text" placeholder="content, ai" value="${String(defaultTags).replace(/"/g, "&quot;")}">
+
+        <label class="checkbox-row">
+          <input type="checkbox" id="wpRemember" ${(!isAnonymous && defaultRemember) ? "checked" : ""} ${isAnonymous ? "disabled" : ""}>
+          <span>Remember these WordPress settings in this browser</span>
+        </label>
+
+        <p class="small-note" id="wpExportStatus"></p>
+
+        <div class="actions-row wrap">
+          <button type="button" class="btn-secondary" id="wpTestBtn">Test connection</button>
+          <button type="submit" class="btn-primary" id="wpSubmitBtn">Create post</button>
+        </div>
+
+        <p class="small-note">
+          Notes: your site must allow REST API access from the browser (CORS). If this fails with a network/CORS error,
+          consider running the app from the same domain or using a small proxy.
+        </p>
+      </form>
     `;
+
+    const form = document.getElementById("wpExportForm");
+    const statusLine = document.getElementById("wpExportStatus");
+    const testBtn = document.getElementById("wpTestBtn");
+    const submitBtn = document.getElementById("wpSubmitBtn");
+
+    function setWpModalStatus(text, { error = false, loading = false } = {}) {
+      if (!statusLine) return;
+      statusLine.textContent = text || "";
+      statusLine.classList.toggle("error", !!error);
+      statusLine.classList.toggle("loading", !!loading);
+    }
+
+    async function testConnection(values) {
+      const apiBase = wpApiBase(values.siteUrl);
+      const authHeader = wpAuthHeader(values.username, values.applicationPassword);
+      const me = await wpFetchJson(`${apiBase}/users/me?context=edit`, {
+        headers: { Authorization: authHeader }
+      });
+      return me;
+    }
+
+    function readValues() {
+      const siteUrl = normalizeWpSiteUrl(document.getElementById("wpSiteUrl")?.value);
+      const username = (document.getElementById("wpUsername")?.value || "").trim();
+      const applicationPassword = (document.getElementById("wpAppPassword")?.value || "").trim();
+      const postStatus = document.getElementById("wpPostStatus")?.value || "draft";
+      const title = (document.getElementById("wpTitle")?.value || "").trim() || deriveWpTitle();
+      const categories = document.getElementById("wpCategories")?.value || "";
+      const tags = document.getElementById("wpTags")?.value || "";
+      const remember = !!document.getElementById("wpRemember")?.checked;
+      return { siteUrl, username, applicationPassword, postStatus, title, categories, tags, remember };
+    }
+
+    async function createPost(values) {
+      const { content, error } = getExportContent("article");
+      if (error) throw new Error(error);
+
+      const apiBase = wpApiBase(values.siteUrl);
+      const authHeader = wpAuthHeader(values.username, values.applicationPassword);
+
+      const html = window.marked && typeof window.marked.parse === "function"
+        ? window.marked.parse(content)
+        : content;
+
+      const categoryNames = parseCommaList(values.categories);
+      const tagNames = parseCommaList(values.tags);
+
+      const [categoryIds, tagIds] = await Promise.all([
+        ensureWpTerms({ apiBase, authHeader, type: "category", names: categoryNames }),
+        ensureWpTerms({ apiBase, authHeader, type: "tag", names: tagNames })
+      ]);
+
+      const postPayload = {
+        title: values.title,
+        content: html,
+        status: values.postStatus,
+        ...(categoryIds.length ? { categories: categoryIds } : {}),
+        ...(tagIds.length ? { tags: tagIds } : {})
+      };
+
+      return wpFetchJson(`${apiBase}/posts`, {
+        method: "POST",
+        headers: { Authorization: authHeader },
+        body: postPayload
+      });
+    }
+
+    async function withBusyState(fn) {
+      if (submitBtn) submitBtn.disabled = true;
+      if (testBtn) testBtn.disabled = true;
+      try {
+        return await fn();
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+        if (testBtn) testBtn.disabled = false;
+      }
+    }
+
+    if (testBtn) {
+      testBtn.addEventListener("click", () => {
+        const values = readValues();
+        if (!values.siteUrl || !values.username || !values.applicationPassword) {
+          setWpModalStatus("Please fill Site URL, Username and Application password.", { error: true });
+          return;
+        }
+
+        setWpModalStatus("Testing connection…", { loading: true });
+        withBusyState(async () => {
+          const me = await testConnection(values);
+          setWpModalStatus(`Connected as ${me?.name || me?.username || "user"}.`, { loading: false });
+        }).catch((err) => {
+          console.error("wp test error:", err);
+          setWpModalStatus(`Connection failed: ${err.message || err}`, { error: true });
+        });
+      });
+    }
+
+    if (form) {
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const values = readValues();
+        if (!values.siteUrl || !values.username || !values.applicationPassword) {
+          setWpModalStatus("Please fill Site URL, Username and Application password.", { error: true });
+          return;
+        }
+
+        setWpModalStatus("Creating post…", { loading: true });
+        withBusyState(async () => {
+          const post = await createPost(values);
+
+          if (!isAnonymous && values.remember) {
+            persistWordPressConfig({
+              siteUrl: values.siteUrl,
+              username: values.username,
+              applicationPassword: values.applicationPassword,
+              categories: values.categories,
+              tags: values.tags,
+              postStatus: values.postStatus,
+              remember: true
+            });
+          } else if (!isAnonymous) {
+            persistWordPressConfig({ remember: false });
+          }
+
+          const link = post?.link || "";
+          setWpModalStatus(
+            `✅ Post created (id: ${post?.id || "?"}). ${link ? "Open: " + link : ""}`,
+            { loading: false }
+          );
+        }).catch((err) => {
+          console.error("wp create error:", err);
+          const msg = err?.payload?.message || err.message || String(err);
+          setWpModalStatus(`Failed: ${msg}`, { error: true });
+        });
+      });
+    }
+
     exportModal.classList.add("open");
     exportModal.setAttribute("aria-hidden", "false");
+  }
+
+  function base64UrlEncodeBytes(bytes) {
+    const chunkSize = 0x8000;
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary)
+      .replace(/=/g, "")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_");
+  }
+
+  function base64UrlEncodeJson(obj) {
+    const json = JSON.stringify(obj);
+    const bytes = new TextEncoder().encode(json);
+    return base64UrlEncodeBytes(bytes);
+  }
+
+  function hexToBytes(hex) {
+    const cleaned = (hex || "").trim().replace(/^0x/i, "");
+    if (!cleaned || cleaned.length % 2 !== 0 || /[^0-9a-f]/i.test(cleaned)) return null;
+    const out = new Uint8Array(cleaned.length / 2);
+    for (let i = 0; i < cleaned.length; i += 2) {
+      out[i / 2] = parseInt(cleaned.slice(i, i + 2), 16);
+    }
+    return out;
+  }
+
+  function normalizeGhostSiteUrl(input) {
+    const trimmed = String(input || "").trim();
+    if (!trimmed) return "";
+    const withoutTrailing = trimmed.replace(/\/+$/g, "");
+    return withoutTrailing.replace(/\/ghost$/i, "");
+  }
+
+  function loadGhostSettings() {
+    if (isAnonymous) {
+      return { url: "", key: "", remember: false };
+    }
+
+    const url = (window.localStorage.getItem(STORAGE_KEY_GHOST_ADMIN_URL) || "").trim();
+    const remember = readBoolStorage(STORAGE_KEY_GHOST_REMEMBER, false);
+
+    let key = "";
+    if (remember) {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY_GHOST_ADMIN_KEY);
+        const payload = raw ? JSON.parse(raw) : null;
+        key = payload ? decodeStoredApiKey(payload) : "";
+      } catch (err) {
+        console.warn("Unable to parse Ghost key payload:", err);
+      }
+    }
+
+    return { url, key, remember };
+  }
+
+  function persistGhostSettings({ url, key, remember }) {
+    if (isAnonymous) return;
+
+    setItemGuarded(STORAGE_KEY_GHOST_ADMIN_URL, String(url || "").trim());
+    writeBoolStorage(STORAGE_KEY_GHOST_REMEMBER, !!remember);
+
+    if (!remember) {
+      removeItem(STORAGE_KEY_GHOST_ADMIN_KEY);
+      return;
+    }
+
+    const password = masterPasswordInput ? masterPasswordInput.value.trim() : "";
+    const payload = password
+      ? { method: "xor", cipher: xorEncrypt(key, password) }
+      : { method: "base64", cipher: base64Encode(key) };
+
+    setItemGuarded(STORAGE_KEY_GHOST_ADMIN_KEY, JSON.stringify(payload));
+  }
+
+  function inferTitleFromMarkdown(md) {
+    const text = String(md || "");
+    const lines = text.split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("# ")) {
+        return trimmed.replace(/^#\s+/, "").trim();
+      }
+      if (trimmed) break;
+    }
+    return "";
+  }
+
+  function parseTagsCsv(input) {
+    return String(input || "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .slice(0, 50);
+  }
+
+  async function createGhostAdminToken(adminKey) {
+    const raw = String(adminKey || "").trim();
+    const parts = raw.split(":");
+    if (parts.length !== 2) {
+      throw new Error("Ghost Admin API key must look like <id>:<secret>." );
+    }
+
+    const [id, secretHex] = parts;
+    const secretBytes = hexToBytes(secretHex);
+    if (!secretBytes) {
+      throw new Error("Ghost Admin API key secret must be a hex string.");
+    }
+
+    const iat = Math.floor(Date.now() / 1000);
+    const exp = iat + 5 * 60;
+
+    const header = { alg: "HS256", typ: "JWT", kid: id };
+    const payload = { iat, exp, aud: "/admin/" };
+
+    const encodedHeader = base64UrlEncodeJson(header);
+    const encodedPayload = base64UrlEncodeJson(payload);
+    const unsignedToken = `${encodedHeader}.${encodedPayload}`;
+
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      secretBytes,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+
+    const signature = await crypto.subtle.sign(
+      "HMAC",
+      cryptoKey,
+      new TextEncoder().encode(unsignedToken)
+    );
+
+    const sigBytes = new Uint8Array(signature);
+    const encodedSig = base64UrlEncodeBytes(sigBytes);
+
+    return `${unsignedToken}.${encodedSig}`;
+  }
+
+  async function sendPostToGhost({ adminUrl, adminKey, title, html, tags, featureImage, publish }) {
+    const siteUrl = normalizeGhostSiteUrl(adminUrl);
+    if (!siteUrl) throw new Error("Ghost Admin API URL is required.");
+    if (!adminKey) throw new Error("Ghost Admin API key is required.");
+
+    const token = await createGhostAdminToken(adminKey);
+    const endpoint = `${siteUrl}/ghost/api/admin/posts/?source=html`;
+
+    const post = {
+      title: title || "Untitled",
+      html,
+      status: publish ? "published" : "draft",
+      ...(featureImage ? { feature_image: featureImage } : {}),
+      ...(tags && tags.length ? { tags: tags.map((name) => ({ name })) } : {})
+    };
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Ghost ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ posts: [post] })
+    });
+
+    const bodyText = await res.text();
+    let data = null;
+    try {
+      data = bodyText ? JSON.parse(bodyText) : null;
+    } catch (err) {
+      data = null;
+    }
+
+    if (!res.ok) {
+      const msg = data?.errors?.[0]?.message || bodyText || `Ghost request failed (HTTP ${res.status}).`;
+      throw new Error(msg);
+    }
+
+    const created = data?.posts?.[0];
+    return created || null;
+  }
+
+  function openExportModal(platform) {
+    if (!exportModal || !exportModalTitle || !exportModalSubtitle || !exportModalBody) return;
+
+    const isGhost = platform === "ghost";
+    exportModalTitle.textContent = isGhost ? "Send to Ghost" : "Send to WordPress";
+
+    if (!isGhost) {
+      exportModalSubtitle.textContent = "Coming soon";
+      exportModalBody.innerHTML = `
+        <p class="small-note">Required fields for future integration:</p>
+        <ul class="modal-list">
+          <li>Site URL</li>
+          <li>Application password</li>
+        </ul>
+      `;
+      exportModal.classList.add("open");
+      exportModal.setAttribute("aria-hidden", "false");
+      return;
+    }
+
+    exportModalSubtitle.textContent = "Create a draft or publish via Ghost Admin API";
+
+    const payload = getExportJsonPayload();
+    const articleMd = payload.article_markdown || "";
+
+    const defaultTitle = (payload.seo_metadata?.seo_title || "").trim() || inferTitleFromMarkdown(articleMd) || payload.keyword || "Untitled";
+    const defaultTags = String(payload.seo_metadata?.secondary_keywords || "").trim();
+
+    const saved = loadGhostSettings();
+
+    exportModalBody.innerHTML = `
+      <p class="small-note">
+        This uses the <strong>Ghost Admin API</strong> directly from your browser (BYOC). Your key is only stored locally if you enable “Remember”.
+      </p>
+
+      <label class="field-label" for="ghostAdminUrl">
+        Ghost Admin API URL
+        <span class="field-help">Example: https://your-site.com (or https://your-site.com/ghost)</span>
+      </label>
+      <input type="url" id="ghostAdminUrl" class="field-input" placeholder="https://your-site.com" autocomplete="off" value="${saved.url.replace(/"/g, "&quot;")}">
+
+      <label class="field-label" for="ghostAdminKey">
+        Ghost Admin API key
+        <span class="field-help">Format: <code>&lt;id&gt;:&lt;secret&gt;</code> (found in Ghost Admin → Integrations).</span>
+      </label>
+      <input type="password" id="ghostAdminKey" class="field-input" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:yyyyyyyy..." autocomplete="off" value="${saved.key.replace(/"/g, "&quot;")}">
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="ghostRemember" ${saved.remember ? "checked" : ""}>
+        <span>Remember Ghost credentials in this browser</span>
+      </label>
+
+      <div class="settings-divider"></div>
+
+      <label class="field-label" for="ghostTitle">Title</label>
+      <input type="text" id="ghostTitle" class="field-input" value="${defaultTitle.replace(/"/g, "&quot;")}">
+
+      <label class="field-label" for="ghostTags">
+        Tags (comma-separated)
+        <span class="field-help">We’ll create tags by name if they don’t exist yet.</span>
+      </label>
+      <input type="text" id="ghostTags" class="field-input" placeholder="seo, marketing" value="${defaultTags.replace(/"/g, "&quot;")}">
+
+      <label class="field-label" for="ghostFeatureImage">
+        Feature image URL (optional)
+        <span class="field-help">Must be a publicly accessible image URL (https://...).</span>
+      </label>
+      <input type="url" id="ghostFeatureImage" class="field-input" placeholder="https://.../cover.jpg" autocomplete="off">
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="ghostPublish">
+        <span>Publish immediately</span>
+      </label>
+
+      <p class="status-text" id="ghostModalStatus"></p>
+
+      <div class="config-actions">
+        <button type="button" id="ghostSendBtn" class="btn-primary">Send to Ghost</button>
+        <button type="button" id="ghostCopyHtmlBtn" class="btn-ghost">Copy HTML</button>
+      </div>
+
+      <p class="small-note">
+        Note: If your Ghost is on a different domain, the browser may block this request due to CORS.
+        In that case, use a same-origin setup or an API gateway.
+      </p>
+    `;
+
+    exportModal.classList.add("open");
+    exportModal.setAttribute("aria-hidden", "false");
+
+    const urlInput = document.getElementById("ghostAdminUrl");
+    const keyInput = document.getElementById("ghostAdminKey");
+    const rememberInput = document.getElementById("ghostRemember");
+    const titleInput = document.getElementById("ghostTitle");
+    const tagsInput = document.getElementById("ghostTags");
+    const featureImageInput = document.getElementById("ghostFeatureImage");
+    const publishInput = document.getElementById("ghostPublish");
+    const sendBtn = document.getElementById("ghostSendBtn");
+    const copyHtmlBtn = document.getElementById("ghostCopyHtmlBtn");
+    const modalStatus = document.getElementById("ghostModalStatus");
+
+    function setModalStatus(text, { error = false } = {}) {
+      if (!modalStatus) return;
+      modalStatus.textContent = text;
+      modalStatus.classList.toggle("error", !!error);
+      modalStatus.classList.toggle("loading", false);
+    }
+
+    function getArticleHtml() {
+      const md = articleMarkdown || (outputArea ? outputArea.value : "") || "";
+      if (window.marked && typeof window.marked.parse === "function") {
+        return window.marked.parse(md);
+      }
+      return `<pre>${md.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
+    }
+
+    if (copyHtmlBtn) {
+      copyHtmlBtn.addEventListener("click", async () => {
+        try {
+          const html = getArticleHtml();
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(html);
+            setModalStatus("HTML copied to clipboard.");
+            return;
+          }
+          fallbackCopy(html);
+          setModalStatus("HTML copied.");
+        } catch (err) {
+          console.error("Copy HTML error", err);
+          setModalStatus("Could not copy HTML.", { error: true });
+        }
+      });
+    }
+
+    if (sendBtn) {
+      sendBtn.addEventListener("click", async () => {
+        try {
+          if (!urlInput || !keyInput) return;
+          const url = urlInput.value.trim();
+          const key = keyInput.value.trim();
+          const remember = rememberInput ? rememberInput.checked : false;
+
+          persistGhostSettings({ url, key, remember });
+
+          const title = titleInput ? titleInput.value.trim() : "";
+          const tags = tagsInput ? parseTagsCsv(tagsInput.value) : [];
+          const featureImage = featureImageInput ? featureImageInput.value.trim() : "";
+          const publish = publishInput ? publishInput.checked : false;
+
+          const html = getArticleHtml();
+
+          setModalStatus(publish ? "Publishing…" : "Creating draft…");
+          modalStatus?.classList.add("loading");
+          sendBtn.disabled = true;
+
+          const created = await sendPostToGhost({
+            adminUrl: url,
+            adminKey: key,
+            title,
+            html,
+            tags,
+            featureImage,
+            publish
+          });
+
+          const postUrl = created?.url || "";
+          if (postUrl) {
+            setModalStatus(`${publish ? "Published" : "Draft created"}: ${postUrl}`);
+          } else {
+            setModalStatus(publish ? "Published." : "Draft created.");
+          }
+
+          if (statusEl) {
+            statusEl.textContent = publish ? "Sent to Ghost (published)." : "Sent to Ghost (draft).";
+            statusEl.classList.remove("error");
+          }
+        } catch (err) {
+          console.error("Ghost export error", err);
+          setModalStatus(String(err?.message || err || "Ghost request failed."), { error: true });
+        } finally {
+          if (sendBtn) sendBtn.disabled = false;
+          modalStatus?.classList.remove("loading");
+        }
+      });
+    }
   }
 
   function closeExportModal() {

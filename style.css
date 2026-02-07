@@ -380,6 +380,13 @@ body {
   margin-top: 0.9rem;
 }
 
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
 @media (min-width: 780px) {
   .grid-3 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -602,6 +609,14 @@ body {
 .small-note {
   font-size: 0.8rem;
   color: var(--text-muted);
+}
+
+.small-note.error {
+  color: var(--danger);
+}
+
+.small-note.loading {
+  color: var(--accent);
 }
 
 .icon-btn {

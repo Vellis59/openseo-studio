@@ -2565,10 +2565,14 @@ document.addEventListener("DOMContentLoaded", () => {
         ensureWpTerms({ apiBase, authHeader, type: "tag", names: tagNames })
       ]);
 
+      const exportPayload = getExportJsonPayload();
+      const metaDescription = (exportPayload?.seo_metadata?.meta_description || "").trim();
+
       const postPayload = {
         title: values.title,
         content: html,
         status: values.postStatus,
+        ...(metaDescription ? { excerpt: metaDescription } : {}),
         ...(categoryIds.length ? { categories: categoryIds } : {}),
         ...(tagIds.length ? { tags: tagIds } : {})
       };
@@ -2794,7 +2798,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return `${unsignedToken}.${encodedSig}`;
   }
 
-  async function sendPostToGhost({ adminUrl, adminKey, title, html, tags, featureImage, publish }) {
+  async function sendPostToGhost({ adminUrl, adminKey, title, html, tags, featureImage, publish, metaTitle, metaDescription, excerpt }) {
     const siteUrl = normalizeGhostSiteUrl(adminUrl);
     if (!siteUrl) throw new Error("Ghost site URL is required.");
     if (!adminKey) throw new Error("Ghost Admin API key is required.");
@@ -2820,7 +2824,10 @@ document.addEventListener("DOMContentLoaded", () => {
           html,
           tags,
           featureImage,
-          publish: !!publish
+          publish: !!publish,
+          metaTitle,
+          metaDescription,
+          excerpt
         })
       });
 
@@ -2857,6 +2864,9 @@ document.addEventListener("DOMContentLoaded", () => {
           html: html || "",
           status: publish ? "published" : "draft",
           ...(featureImage ? { feature_image: featureImage } : {}),
+          ...(metaTitle ? { meta_title: String(metaTitle).trim() } : {}),
+          ...(metaDescription ? { meta_description: String(metaDescription).trim() } : {}),
+          ...(excerpt ? { custom_excerpt: String(excerpt).trim() } : {}),
           ...(tags && tags.length
             ? {
                 tags: tags
@@ -3140,6 +3150,10 @@ document.addEventListener("DOMContentLoaded", () => {
           modalStatus?.classList.add("loading");
           sendBtn.disabled = true;
 
+          const exportPayload = getExportJsonPayload();
+          const metaTitle = (exportPayload?.seo_metadata?.seo_title || "").trim();
+          const metaDescription = (exportPayload?.seo_metadata?.meta_description || "").trim();
+
           const created = await sendPostToGhost({
             adminUrl: url,
             adminKey: key,
@@ -3147,7 +3161,10 @@ document.addEventListener("DOMContentLoaded", () => {
             html,
             tags,
             featureImage,
-            publish
+            publish,
+            metaTitle,
+            metaDescription,
+            excerpt: metaDescription
           });
 
           const postUrl = created?.url || "";

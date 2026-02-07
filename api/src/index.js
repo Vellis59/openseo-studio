@@ -348,6 +348,9 @@ export default {
           : [];
         const featureImage = String(payload.featureImage || "").trim();
         const publish = !!payload.publish;
+        const metaTitle = String(payload.metaTitle || payload.meta_title || "").trim();
+        const metaDescription = String(payload.metaDescription || payload.meta_description || "").trim();
+        const excerpt = String(payload.excerpt || payload.custom_excerpt || "").trim();
 
         if (!siteUrl) throw new Error("Missing Ghost siteUrl.");
         if (!adminKey) throw new Error("Missing Ghost adminKey.");
@@ -382,6 +385,9 @@ export default {
           html,
           status: publish ? "published" : "draft",
           ...(featureImage ? { feature_image: featureImage } : {}),
+          ...(metaTitle ? { meta_title: metaTitle } : {}),
+          ...(metaDescription ? { meta_description: metaDescription } : {}),
+          ...(excerpt ? { custom_excerpt: excerpt } : {}),
           ...(tags.length ? { tags: tags.map((name) => ({ name })) } : {})
         };
 
@@ -417,6 +423,7 @@ export default {
         const appPassword = String(payload.appPassword || payload.password || "").trim();
         const title = String(payload.title || "Untitled").trim() || "Untitled";
         const content = String(payload.html || payload.content || "");
+        const excerpt = String(payload.excerpt || "").trim();
 
         if (!siteUrl) throw new Error("Missing WordPress siteUrl.");
         if (!username) throw new Error("Missing WordPress username.");
@@ -435,7 +442,8 @@ export default {
           body: JSON.stringify({
             title,
             content,
-            status: "draft"
+            status: "draft",
+            ...(excerpt ? { excerpt } : {})
           })
         });
 

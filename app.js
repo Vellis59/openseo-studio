@@ -3630,12 +3630,19 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function callChatProvider({ provider, model, apiKey, baseUrl, body, messages, params } = {}) {
+    const resolvedProvider = normalizeProvider(provider);
+
+    // OpenRouter is BYOK and should work out-of-the-box with only an API key.
+    // The optional API gateway is meant for self-hosted deployments; if it's enabled
+    // in localStorage, it can accidentally break OpenRouter calls (e.g. pointing to
+    // a domain serving the static app, not an actual JSON API).
+    // So: never route OpenRouter through the API gateway.
     const gateway = getApiGatewayConfig();
-    if (gateway.enabled) {
-      return await callChatViaApiGateway({ provider, model, apiKey, baseUrl, body, messages, params });
+    if (gateway.enabled && resolvedProvider !== CHAT_PROVIDERS.openrouter) {
+      return await callChatViaApiGateway({ provider: resolvedProvider, model, apiKey, baseUrl, body, messages, params });
     }
 
-    const resolvedProvider = normalizeProvider(provider);
+    
     const resolvedModel = model || body?.model;
     const resolvedMessages = messages || body?.messages || [];
     const resolvedParams = params || {};

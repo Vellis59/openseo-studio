@@ -2164,7 +2164,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function getExportContent(mode) {
-    const articleContent = articleMarkdown || "";
+    // Prefer the latest generated content, but fall back to whatever is currently
+    // in the output textarea (e.g. after a refresh, or when loading from History).
+    const articleContent = (articleMarkdown || (outputArea ? outputArea.value : "") || "");
     const hasArticle = articleContent.trim();
     if (!hasArticle) {
       return { error: "No article content to export yet." };
@@ -3141,7 +3143,14 @@ document.addEventListener("DOMContentLoaded", () => {
           statusEl.classList.add("error");
         });
       } else if (action === "ghost" || action === "wordpress") {
-        getExportContent("article");
+        const { error } = getExportContent("article");
+        if (error) {
+          if (statusEl) {
+            statusEl.textContent = error;
+            statusEl.classList.add("error");
+          }
+          return;
+        }
         openExportModal(action);
       }
     });

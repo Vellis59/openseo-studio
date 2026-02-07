@@ -192,6 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const webResearchRow = document.getElementById("webResearchRow");
   const webResearchBtn = document.getElementById("webResearchBtn");
   const clearWebResearchBtn = document.getElementById("clearWebResearchBtn");
+  const webResearchPreview = document.getElementById("webResearchPreview");
   const webResearchStatus = document.getElementById("webResearchStatus");
 
   const apiKeyInput = document.getElementById("apiKey");
@@ -725,6 +726,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Hydrate web research cache + Perplexity key
   if (!isAnonymous) {
     webResearchCache = (window.localStorage.getItem(STORAGE_KEY_WEB_RESEARCH_CACHE) || "").trim();
+    if (webResearchPreview) webResearchPreview.value = webResearchCache;
     const storedPplx = (window.localStorage.getItem(STORAGE_KEY_PERPLEXITY_API_KEY) || "").trim();
     if (storedPplx && perplexityApiKeyInput) {
       perplexityApiKeyInput.value = storedPplx;
@@ -1154,6 +1156,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function setWebResearchStatus(text, { error = false, loading = false } = {}) {
+    if (webResearchPreview) {
+      webResearchPreview.value = webResearchCache || "";
+    }
     if (!webResearchStatus) return;
     webResearchStatus.textContent = text || "";
     webResearchStatus.classList.toggle("error", !!error);
@@ -4158,8 +4163,9 @@ document.addEventListener("DOMContentLoaded", () => {
             await fetchWebResearch({ keyword, planText, languageConfig });
             setWebResearchStatus("Web research ready.", { loading: false });
           }
+          // Research is passed separately to the prompt builder; keep extra untouched.
           if (webResearchCache) {
-            researchBlock = `\n\n---\n\n## Latest web research (with sources)\n\n${webResearchCache}\n\n---\n`;
+            researchBlock = webResearchCache;
           }
         } catch (err) {
           console.error("auto web research error", err);
@@ -4175,7 +4181,8 @@ document.addEventListener("DOMContentLoaded", () => {
         languageConfig,
         tone,
         length,
-        extra: `${extra}${researchBlock}`.trim(),
+        extra,
+        research: webResearchCache,
         planText
       });
 
@@ -4685,6 +4692,7 @@ function buildPromptBlocks({
   tone,
   length,
   extra,
+  research,
   planText,
   mode,
   tocRequested
@@ -4731,6 +4739,18 @@ function buildPromptBlocks({
     lines.push("");
   }
 
+  if (research) {
+    lines.push(
+      "Latest web research (use these facts; do NOT invent; include citations):",
+      "- Use the information below as the primary factual source.",
+      "- If a key detail is not present in the research, say you cannot confirm it.",
+      "- When stating concrete facts (versions, commands, dates, defaults), cite a source URL from the research.",
+      "",
+      String(research).trim(),
+      ""
+    );
+  }
+
   if (mode !== "minimal") {
     lines.push("Writing guidelines:");
     PROMPT_BLOCKS.WRITING_GUIDELINES.forEach((rule) => lines.push(`- ${rule}`));
@@ -4767,7 +4787,7 @@ function buildPromptBlocks({
 /**
  * Build the user prompt for the SEO article generator.
  */
-function buildUserPrompt({ keyword, languageConfig, tone, length, extra, planText }) {
+function buildUserPrompt({ keyword, languageConfig, tone, length, extra, research, planText }) {
   const promptModeSelect = document.getElementById("promptMode");
   const tocCheckbox = document.getElementById("tocCheckbox");
   const mode = promptModeSelect ? promptModeSelect.value : "standard";
@@ -4778,6 +4798,7 @@ function buildUserPrompt({ keyword, languageConfig, tone, length, extra, planTex
     tone,
     length,
     extra,
+    research,
     planText,
     mode,
     tocRequested: Boolean(tocCheckbox && tocCheckbox.checked)

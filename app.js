@@ -2880,7 +2880,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const mode = promptModeSelect ? promptModeSelect.value : "standard";
 
       if (!model) {
-        statusEl.textContent = "Please select a model (load them from OpenRouter first).";
+        statusEl.textContent = "Please select a model in the settings.";
         statusEl.classList.add("error");
         if (menuPanel) {
           menuPanel.classList.add("open");
@@ -2889,10 +2889,10 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      if (rememberKeyCheckbox && rememberKeyCheckbox.checked) {
-        persistApiKey(apiKey);
+      if (provider !== CHAT_PROVIDERS.ollama && apiKey) {
+        persistApiKeyForProvider(provider, apiKey);
       } else {
-        removeItem(STORAGE_KEY_API);
+        persistApiKeyForProvider(provider, "");
       }
 
       const userPrompt = buildUserPrompt({

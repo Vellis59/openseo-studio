@@ -4,7 +4,7 @@ const ALLOWED_ORIGINS = new Set([
   "https://api.openseo.studio"
 ]);
 
-const PROVIDERS = ["openrouter", "openai", "anthropic", "gemini", "ollama"];
+const PROVIDERS = ["openrouter", "openai", "anthropic", "gemini", "ollama", "perplexity"];
 
 const CURATED_MODELS = {
   openai: [
@@ -147,6 +147,22 @@ function taskToSystemAndPrompt(task, input) {
 async function callProvider({ provider, model, apiKey, baseUrl, body }) {
   if (provider === "openrouter") {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) throw new Error(await toError(res));
+    const data = await res.json();
+    const text = data?.choices?.[0]?.message?.content || "";
+    return { text, raw: data };
+  }
+
+  if (provider === "perplexity") {
+    const res = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -414,6 +430,43 @@ export default {
         }
 
         return withCors(request, json({ ok: true, post: data?.posts?.[0] || null }, { headers: corsHeaders(request) }));
+      }
+
+      if (url.pathname === "/v1/research/perplexity" && request.method === "POST") {
+        const payload = await request.json();
+        const query = String(payload.query || "").trim();
+        const maxSources = Math.max(1, Math.min(12, Number(payload.maxSources) || 8));
+        if (!query) throw new Error("Missing query.");
+
+        const apiKey = env?.PERPLEXITY_API_KEY || "";
+        if (!apiKey) throw new Error("Missing PERPLEXITY_API_KEY secret on the Worker.");
+
+        const body = {
+          model: "sonar-pro",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a research assistant. Use web search. Return concise bullet points with up-to-date facts, and include a final 'Sources:' section with the URLs you used."
+            },
+            { role: "user", content: query }
+          ],
+          // Ask for a bit more context, but keep it readable
+          max_tokens: 900,
+          temperature: 0.2
+        };
+
+        const result = await callProvider({ provider: "perplexity", model: "sonar-pro", apiKey, body });
+        const citations = Array.isArray(result?.raw?.citations) ? result.raw.citations.slice(0, maxSources) : [];
+
+        const report = [
+          result.text || "",
+          citations.length ? `\n\nSources:\n${citations.map((u) => `- ${u}`).join("\n")}` : ""
+        ]
+          .join("")
+          .trim();
+
+        return withCors(request, json({ ok: true, report, citations }, { headers: corsHeaders(request) }));
       }
 
       if (url.pathname === "/v1/publish/wordpress" && request.method === "POST") {

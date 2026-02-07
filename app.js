@@ -188,6 +188,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const apiGatewayRow = document.getElementById("apiGatewayRow");
   const apiGatewayBaseUrlInput = document.getElementById("apiGatewayBaseUrl");
 
+  const useWebResearchCheckbox = document.getElementById("useWebResearch");
+  const webResearchRow = document.getElementById("webResearchRow");
+  const webResearchBtn = document.getElementById("webResearchBtn");
+  const clearWebResearchBtn = document.getElementById("clearWebResearchBtn");
+  const webResearchStatus = document.getElementById("webResearchStatus");
+
   const apiKeyInput = document.getElementById("apiKey");
   const rememberKeyCheckbox = document.getElementById("rememberKey");
   const masterPasswordInput = document.getElementById("masterPassword");
@@ -303,6 +309,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Optional API gateway (portable: local/VPS/Workers)
   const STORAGE_KEY_USE_API_GATEWAY = "openseo_use_api_gateway";
   const STORAGE_KEY_API_GATEWAY_BASE_URL = "openseo_api_gateway_base_url";
+  const STORAGE_KEY_USE_WEB_RESEARCH = "openseo_use_web_research";
+  const STORAGE_KEY_WEB_RESEARCH_CACHE = "openseo_web_research_cache";
 
   const STORAGE_KEY_THEME = "openseo_color_theme";
   const STORAGE_KEY_HISTORY = "openseo_article_history";
@@ -337,6 +345,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let articleMarkdown = "";
   let imagePromptsMarkdown = "";
   let lastSeoMetadata = null;
+  let webResearchCache = "";
   let lastKeyword = "";
 
   let lastObservedApiKey = "";
@@ -711,6 +720,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // Provider-specific settings (including API keys / models) are hydrated below.
   showWelcomeIfNeeded();
 
+  // Hydrate web research cache
+  if (!isAnonymous) {
+    webResearchCache = (window.localStorage.getItem(STORAGE_KEY_WEB_RESEARCH_CACHE) || "").trim();
+  }
+
   /* ---------- Theme toggle ---------- */
 
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
@@ -1050,8 +1064,12 @@ document.addEventListener("DOMContentLoaded", () => {
   migrateLegacyProviderStorageIfNeeded();
 
   function syncApiGatewayUi() {
-    if (!useApiGatewayCheckbox || !apiGatewayRow) return;
-    apiGatewayRow.classList.toggle("hidden", !useApiGatewayCheckbox.checked);
+    if (useApiGatewayCheckbox && apiGatewayRow) {
+      apiGatewayRow.classList.toggle("hidden", !useApiGatewayCheckbox.checked);
+    }
+    if (useWebResearchCheckbox && webResearchRow) {
+      webResearchRow.classList.toggle("hidden", !useWebResearchCheckbox.checked);
+    }
   }
 
   if (useApiGatewayCheckbox) {
@@ -1063,11 +1081,90 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  if (useWebResearchCheckbox) {
+    useWebResearchCheckbox.checked = readBoolStorage(STORAGE_KEY_USE_WEB_RESEARCH, false);
+    syncApiGatewayUi();
+    useWebResearchCheckbox.addEventListener("change", () => {
+      writeBoolStorage(STORAGE_KEY_USE_WEB_RESEARCH, useWebResearchCheckbox.checked);
+      syncApiGatewayUi();
+    });
+  }
+
   if (apiGatewayBaseUrlInput) {
     const storedUrl = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_API_GATEWAY_BASE_URL) : null;
     apiGatewayBaseUrlInput.value = (storedUrl || "https://api.openseo.studio").trim();
     apiGatewayBaseUrlInput.addEventListener("change", () => {
       setItemGuarded(STORAGE_KEY_API_GATEWAY_BASE_URL, apiGatewayBaseUrlInput.value.trim());
+    });
+  }
+
+  async function fetchWebResearch({ keyword, planText, languageConfig } = {}) {
+    const gateway = getApiGatewayConfig();
+    if (!gateway.enabled) {
+      throw new Error("Enable ‘Use API endpoint’ to use web research.");
+    }
+
+    const endpoint = `${gateway.baseUrl.replace(/\/+$/, "")}/v1/research/perplexity`;
+
+    const queryParts = [
+      keyword ? `Topic: ${keyword}` : "",
+      planText ? `Outline:\n${String(planText).slice(0, 3000)}` : "",
+      languageConfig?.promptName ? `Language: ${languageConfig.promptName}` : ""
+    ].filter(Boolean);
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query: queryParts.join("\n\n"), maxSources: 8 })
+    });
+
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+    if (!res.ok) {
+      const msg = data?.error || data?.message || text || `Research failed (HTTP ${res.status}).`;
+      throw new Error(String(msg).slice(0, 500));
+    }
+
+    const report = String(data?.report || "").trim();
+    if (!report) throw new Error("Empty research response.");
+
+    webResearchCache = report;
+    setItemGuarded(STORAGE_KEY_WEB_RESEARCH_CACHE, webResearchCache);
+    return report;
+  }
+
+  function setWebResearchStatus(text, { error = false, loading = false } = {}) {
+    if (!webResearchStatus) return;
+    webResearchStatus.textContent = text || "";
+    webResearchStatus.classList.toggle("error", !!error);
+    webResearchStatus.classList.toggle("loading", !!loading);
+  }
+
+  if (webResearchBtn) {
+    webResearchBtn.addEventListener("click", async () => {
+      try {
+        setWebResearchStatus("Fetching web research…", { loading: true });
+        webResearchBtn.disabled = true;
+        const keyword = keywordInput ? keywordInput.value.trim() : "";
+        const planText = planEditor ? planEditor.value : "";
+        const languageConfig = getSelectedLanguage();
+        await fetchWebResearch({ keyword, planText, languageConfig });
+        setWebResearchStatus("Web research ready.", { loading: false });
+      } catch (err) {
+        console.error("web research error", err);
+        setWebResearchStatus(String(err?.message || err), { error: true, loading: false });
+      } finally {
+        webResearchBtn.disabled = false;
+      }
+    });
+  }
+
+  if (clearWebResearchBtn) {
+    clearWebResearchBtn.addEventListener("click", () => {
+      webResearchCache = "";
+      removeItem(STORAGE_KEY_WEB_RESEARCH_CACHE);
+      setWebResearchStatus("Cleared.");
     });
   }
 
@@ -4029,13 +4126,38 @@ document.addEventListener("DOMContentLoaded", () => {
         persistApiKeyForProvider(provider, "");
       }
 
+      const planText = planEditor ? planEditor.value : "";
+
+      // Optional: web research context (via Perplexity through the API endpoint)
+      let researchBlock = "";
+      if (useWebResearchCheckbox && useWebResearchCheckbox.checked) {
+        try {
+          // If no cache yet, fetch automatically.
+          if (!webResearchCache) {
+            if (webResearchBtn) webResearchBtn.disabled = true;
+            setWebResearchStatus("Auto-fetching web research…", { loading: true });
+            await fetchWebResearch({ keyword, planText, languageConfig });
+            setWebResearchStatus("Web research ready.", { loading: false });
+          }
+          if (webResearchCache) {
+            researchBlock = `\n\n---\n\n## Latest web research (with sources)\n\n${webResearchCache}\n\n---\n`;
+          }
+        } catch (err) {
+          console.error("auto web research error", err);
+          setWebResearchStatus(String(err?.message || err), { error: true, loading: false });
+          // Continue without research.
+        } finally {
+          if (webResearchBtn) webResearchBtn.disabled = false;
+        }
+      }
+
       const userPrompt = buildUserPrompt({
         keyword,
         languageConfig,
         tone,
         length,
-        extra,
-        planText: planEditor ? planEditor.value : ""
+        extra: `${extra}${researchBlock}`.trim(),
+        planText
       });
 
       const temperature = expertToggle && expertToggle.checked ? Number(temperatureInput.value) || 0.7 : 0.7;

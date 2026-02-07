@@ -438,8 +438,8 @@ export default {
         const maxSources = Math.max(1, Math.min(12, Number(payload.maxSources) || 8));
         if (!query) throw new Error("Missing query.");
 
-        const apiKey = env?.PERPLEXITY_API_KEY || "";
-        if (!apiKey) throw new Error("Missing PERPLEXITY_API_KEY secret on the Worker.");
+        const apiKey = bearerToken(request) || String(payload.apiKey || "").trim();
+        if (!apiKey) throw new Error("Missing Perplexity API key (send Authorization: Bearer <key>)." );
 
         const body = {
           model: "sonar-pro",

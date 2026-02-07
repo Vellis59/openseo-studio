@@ -197,6 +197,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const apiKeyInput = document.getElementById("apiKey");
   const rememberKeyCheckbox = document.getElementById("rememberKey");
   const masterPasswordInput = document.getElementById("masterPassword");
+  const perplexityApiKeyInput = document.getElementById("perplexityApiKey");
   const anonymousModeCheckbox = document.getElementById("anonymousMode");
   const modelSelect = document.getElementById("modelSelect");
   const reloadModelsBtn = document.getElementById("reloadModelsBtn");
@@ -311,6 +312,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const STORAGE_KEY_API_GATEWAY_BASE_URL = "openseo_api_gateway_base_url";
   const STORAGE_KEY_USE_WEB_RESEARCH = "openseo_use_web_research";
   const STORAGE_KEY_WEB_RESEARCH_CACHE = "openseo_web_research_cache";
+  const STORAGE_KEY_PERPLEXITY_API_KEY = "openseo_perplexity_api_key";
 
   const STORAGE_KEY_THEME = "openseo_color_theme";
   const STORAGE_KEY_HISTORY = "openseo_article_history";
@@ -720,9 +722,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // Provider-specific settings (including API keys / models) are hydrated below.
   showWelcomeIfNeeded();
 
-  // Hydrate web research cache
+  // Hydrate web research cache + Perplexity key
   if (!isAnonymous) {
     webResearchCache = (window.localStorage.getItem(STORAGE_KEY_WEB_RESEARCH_CACHE) || "").trim();
+    const storedPplx = (window.localStorage.getItem(STORAGE_KEY_PERPLEXITY_API_KEY) || "").trim();
+    if (storedPplx && perplexityApiKeyInput) {
+      perplexityApiKeyInput.value = storedPplx;
+    }
   }
 
   /* ---------- Theme toggle ---------- */
@@ -1104,6 +1110,15 @@ document.addEventListener("DOMContentLoaded", () => {
       throw new Error("Enable ‘Use API endpoint’ to use web research.");
     }
 
+    const key = perplexityApiKeyInput ? sanitizeApiKey(perplexityApiKeyInput.value) : "";
+    if (perplexityApiKeyInput) perplexityApiKeyInput.value = key;
+    if (!key) throw new Error("Missing Perplexity API key.");
+
+    // Optionally remember in localStorage (same toggle as provider keys)
+    if (!isAnonymous && rememberKeyCheckbox && rememberKeyCheckbox.checked) {
+      setItemGuarded(STORAGE_KEY_PERPLEXITY_API_KEY, key);
+    }
+
     const endpoint = `${gateway.baseUrl.replace(/\/+$/, "")}/v1/research/perplexity`;
 
     const queryParts = [
@@ -1114,7 +1129,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const res = await fetch(endpoint, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        // BYOK: user's key is forwarded to the gateway; nothing is stored server-side.
+        authorization: `Bearer ${key}`
+      },
       body: JSON.stringify({ query: queryParts.join("\n\n"), maxSources: 8 })
     });
 

@@ -2738,20 +2738,109 @@ document.addEventListener("DOMContentLoaded", () => {
   function openExportModal(platform) {
     if (!exportModal || !exportModalTitle || !exportModalSubtitle || !exportModalBody) return;
 
+    if (platform === "wordpress") {
+      renderWpExportModal();
+      return;
+    }
+
     const isGhost = platform === "ghost";
     exportModalTitle.textContent = isGhost ? "Send to Ghost" : "Send to WordPress";
 
     if (!isGhost) {
-      exportModalSubtitle.textContent = "Coming soon";
+      exportModalSubtitle.textContent = "Create a draft via the WordPress REST API";
+
       exportModalBody.innerHTML = `
-        <p class="small-note">Required fields for future integration:</p>
-        <ul class="modal-list">
-          <li>Site URL</li>
-          <li>Application password</li>
-        </ul>
+        <p class="small-note">
+          This sends your content to WordPress as a <strong>draft</strong>. For reliability (CORS), enable <strong>Use API endpoint</strong> in Settings.
+        </p>
+
+        <label class="field-label" for="wpSiteUrl">
+          WordPress site URL
+          <span class="field-help">Example: https://your-site.com</span>
+        </label>
+        <input type="url" id="wpSiteUrl" class="field-input" placeholder="https://your-site.com" autocomplete="off">
+
+        <label class="field-label" for="wpUsername">Username</label>
+        <input type="text" id="wpUsername" class="field-input" placeholder="admin" autocomplete="off">
+
+        <label class="field-label" for="wpAppPassword">
+          Application password
+          <span class="field-help">Generate in WordPress: Users → Profile → Application Passwords.</span>
+        </label>
+        <input type="password" id="wpAppPassword" class="field-input" placeholder="xxxx xxxx xxxx xxxx" autocomplete="off">
+
+        <label class="field-label" for="wpTitle">Title</label>
+        <input type="text" id="wpTitle" class="field-input" value="">
+
+        <p class="status-text" id="wpModalStatus"></p>
+
+        <div class="config-actions">
+          <button type="button" id="wpSendBtn" class="btn-primary">Create draft</button>
+        </div>
       `;
+
       exportModal.classList.add("open");
       exportModal.setAttribute("aria-hidden", "false");
+
+      const payload = getExportJsonPayload();
+      const articleMd = payload.article_markdown || "";
+      const defaultTitle = (payload.seo_metadata?.seo_title || "").trim() || inferTitleFromMarkdown(articleMd) || payload.keyword || "Untitled";
+      const titleInput = document.getElementById("wpTitle");
+      if (titleInput) titleInput.value = defaultTitle;
+
+      const sendBtn = document.getElementById("wpSendBtn");
+      const modalStatus = document.getElementById("wpModalStatus");
+
+      async function setStatus(text, type) {
+        if (!modalStatus) return;
+        modalStatus.textContent = text || "";
+        modalStatus.classList.remove("error", "loading");
+        if (type) modalStatus.classList.add(type);
+      }
+
+      if (sendBtn) {
+        sendBtn.addEventListener("click", async () => {
+          try {
+            await setStatus("Creating draft…", "loading");
+            sendBtn.disabled = true;
+
+            const siteUrl = String(document.getElementById("wpSiteUrl")?.value || "").trim();
+            const username = String(document.getElementById("wpUsername")?.value || "").trim();
+            const appPassword = String(document.getElementById("wpAppPassword")?.value || "").trim();
+            const title = String(document.getElementById("wpTitle")?.value || "").trim();
+
+            const gateway = getApiGatewayConfig();
+            if (!gateway.enabled) throw new Error("Enable ‘Use API endpoint’ in Settings to publish to WordPress.");
+
+            const html = marked.parse(articleMd);
+            const endpoint = `${gateway.baseUrl.replace(/\/+$/, "")}/v1/publish/wordpress`;
+
+            const res = await fetch(endpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ siteUrl, username, appPassword, title, html })
+            });
+
+            const text = await res.text();
+            let data = null;
+            try {
+              data = text ? JSON.parse(text) : null;
+            } catch {
+              data = null;
+            }
+
+            if (!res.ok) throw new Error(data?.error || data?.message || text || `Request failed (HTTP ${res.status}).`);
+
+            const link = data?.post?.link;
+            await setStatus(link ? `Draft created: ${link}` : "Draft created.");
+          } catch (err) {
+            await setStatus(err.message || String(err), "error");
+          } finally {
+            sendBtn.disabled = false;
+          }
+        });
+      }
+
       return;
     }
 

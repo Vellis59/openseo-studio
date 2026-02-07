@@ -1,0 +1,8 @@
+name = "openseo-api"
+main = "src/index.js"
+compatibility_date = "2026-02-01"
+
+[observability]
+enabled = true
+
+# Optional custom domain routing is configured in Cloudflare dashboard.

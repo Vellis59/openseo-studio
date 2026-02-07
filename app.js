@@ -186,6 +186,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const ollamaBaseUrlRow = document.getElementById("ollamaBaseUrlRow");
   const ollamaBaseUrlInput = document.getElementById("ollamaBaseUrl");
 
+  const useApiGatewayCheckbox = document.getElementById("useApiGateway");
+  const apiGatewayRow = document.getElementById("apiGatewayRow");
+  const apiGatewayBaseUrlInput = document.getElementById("apiGatewayBaseUrl");
+
   const apiKeyInput = document.getElementById("apiKey");
   const rememberKeyCheckbox = document.getElementById("rememberKey");
   const masterPasswordInput = document.getElementById("masterPassword");
@@ -297,6 +301,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // Older transitional keys (kept for cleanup / import compatibility)
   const STORAGE_KEY_API_GENERIC = "openseo_api_key";
   const STORAGE_KEY_BASE_URL = "openseo_base_url";
+
+  // Optional API gateway (portable: local/VPS/Workers)
+  const STORAGE_KEY_USE_API_GATEWAY = "openseo_use_api_gateway";
+  const STORAGE_KEY_API_GATEWAY_BASE_URL = "openseo_api_gateway_base_url";
+
   const STORAGE_KEY_THEME = "openseo_color_theme";
   const STORAGE_KEY_HISTORY = "openseo_article_history";
   const STORAGE_KEY_SPEND = "openseo_monthly_spend";
@@ -332,6 +341,17 @@ document.addEventListener("DOMContentLoaded", () => {
     window.localStorage.setItem(key, value);
   }
 
+  function readBoolStorage(key, fallback = false) {
+    if (isAnonymous) return fallback;
+    const raw = window.localStorage.getItem(key);
+    if (raw === null || raw === undefined) return fallback;
+    return raw === "1" || raw === "true";
+  }
+
+  function writeBoolStorage(key, value) {
+    setItemGuarded(key, value ? "1" : "0");
+  }
+
   function removeItem(key) {
     window.localStorage.removeItem(key);
   }
@@ -343,6 +363,8 @@ document.addEventListener("DOMContentLoaded", () => {
       STORAGE_KEY_PROVIDER,
       STORAGE_KEY_PROVIDER_CONFIGS,
       STORAGE_KEY_BASE_URL,
+      STORAGE_KEY_USE_API_GATEWAY,
+      STORAGE_KEY_API_GATEWAY_BASE_URL,
       STORAGE_KEY_MODEL,
       STORAGE_KEY_THEME,
       STORAGE_KEY_HISTORY,
@@ -972,6 +994,28 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   migrateLegacyProviderStorageIfNeeded();
+
+  function syncApiGatewayUi() {
+    if (!useApiGatewayCheckbox || !apiGatewayRow) return;
+    apiGatewayRow.classList.toggle("hidden", !useApiGatewayCheckbox.checked);
+  }
+
+  if (useApiGatewayCheckbox) {
+    useApiGatewayCheckbox.checked = readBoolStorage(STORAGE_KEY_USE_API_GATEWAY, false);
+    syncApiGatewayUi();
+    useApiGatewayCheckbox.addEventListener("change", () => {
+      writeBoolStorage(STORAGE_KEY_USE_API_GATEWAY, useApiGatewayCheckbox.checked);
+      syncApiGatewayUi();
+    });
+  }
+
+  if (apiGatewayBaseUrlInput) {
+    const storedUrl = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_API_GATEWAY_BASE_URL) : null;
+    apiGatewayBaseUrlInput.value = (storedUrl || "https://api.openseo.studio").trim();
+    apiGatewayBaseUrlInput.addEventListener("change", () => {
+      setItemGuarded(STORAGE_KEY_API_GATEWAY_BASE_URL, apiGatewayBaseUrlInput.value.trim());
+    });
+  }
 
   if (providerSelect) {
     const storedProvider = !isAnonymous ? window.localStorage.getItem(STORAGE_KEY_PROVIDER) : null;
@@ -2607,7 +2651,82 @@ document.addEventListener("DOMContentLoaded", () => {
     return request;
   }
 
+  function getApiGatewayConfig() {
+    const enabled = useApiGatewayCheckbox ? useApiGatewayCheckbox.checked : readBoolStorage(STORAGE_KEY_USE_API_GATEWAY, false);
+    const baseUrl = apiGatewayBaseUrlInput
+      ? apiGatewayBaseUrlInput.value.trim()
+      : (isAnonymous ? "" : (window.localStorage.getItem(STORAGE_KEY_API_GATEWAY_BASE_URL) || "").trim());
+
+    return {
+      enabled: !!enabled,
+      baseUrl: baseUrl || "https://api.openseo.studio"
+    };
+  }
+
+  async function callChatViaApiGateway({ provider, model, apiKey, baseUrl, body, messages, params } = {}) {
+    const resolvedProvider = normalizeProvider(provider);
+    const resolvedModel = model || body?.model;
+    const resolvedMessages = messages || body?.messages || [];
+    const resolvedParams = params || {};
+
+    if (!resolvedModel) throw new Error("Missing model.");
+
+    const { baseUrl: gatewayBase } = getApiGatewayConfig();
+    const endpoint = `${gatewayBase.replace(/\/+$/, "")}/v1/generate`;
+
+    const options = {
+      temperature: body?.temperature ?? resolvedParams.temperature,
+      max_tokens: body?.max_tokens ?? resolvedParams.max_tokens,
+      top_p: body?.top_p ?? resolvedParams.top_p,
+      frequency_penalty: body?.frequency_penalty ?? resolvedParams.frequency_penalty
+    };
+
+    const payload = {
+      provider: resolvedProvider,
+      model: resolvedModel,
+      baseUrl,
+      messages: coerceOpenAiMessages(resolvedMessages),
+      options
+    };
+
+    const headers = { "Content-Type": "application/json" };
+    const needsKey = resolvedProvider !== CHAT_PROVIDERS.ollama;
+    if (needsKey) {
+      const sanitizedKey = sanitizeApiKey(apiKey);
+      if (!sanitizedKey) throw new Error("Invalid API key.");
+      headers.Authorization = `Bearer ${sanitizedKey}`;
+    }
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let message = `API error ${response.status}`;
+      try {
+        const parsed = JSON.parse(text);
+        message = parsed?.error || parsed?.message || message;
+      } catch {
+        if (text && text.trim()) message = text.slice(0, 400);
+      }
+      throw new Error(message);
+    }
+
+    const data = await response.json();
+    const content = typeof data?.text === "string" ? data.text : "";
+    if (!content) throw new Error("Empty or unexpected API response.");
+    return content;
+  }
+
   async function callChatProvider({ provider, model, apiKey, baseUrl, body, messages, params } = {}) {
+    const gateway = getApiGatewayConfig();
+    if (gateway.enabled) {
+      return await callChatViaApiGateway({ provider, model, apiKey, baseUrl, body, messages, params });
+    }
+
     const resolvedProvider = normalizeProvider(provider);
     const resolvedModel = model || body?.model;
     const resolvedMessages = messages || body?.messages || [];

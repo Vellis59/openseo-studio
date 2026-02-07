@@ -306,6 +306,127 @@ export default {
         }, { headers: corsHeaders(request) }));
       }
 
+      if (url.pathname === "/v1/publish/ghost" && request.method === "POST") {
+        const payload = await request.json();
+        const siteUrl = String(payload.siteUrl || payload.adminUrl || "")
+          .trim()
+          .replace(/\/+$/, "")
+          .replace(/\/ghost$/i, "");
+        const adminKey = String(payload.adminKey || "").trim();
+        const title = String(payload.title || "Untitled").trim() || "Untitled";
+        const html = String(payload.html || "");
+        const tags = Array.isArray(payload.tags)
+          ? payload.tags.map((t) => String(t).trim()).filter(Boolean)
+          : [];
+        const featureImage = String(payload.featureImage || "").trim();
+        const publish = !!payload.publish;
+
+        if (!siteUrl) throw new Error("Missing Ghost siteUrl.");
+        if (!adminKey) throw new Error("Missing Ghost adminKey.");
+        if (!html.trim()) throw new Error("Missing html.");
+
+        const parts = adminKey.split(":");
+        if (parts.length !== 2) throw new Error("Ghost adminKey must look like <id>:<secret>.");
+        const [kid, secretHex] = parts;
+        const secret = hexToBytes(secretHex);
+        if (!secret) throw new Error("Ghost adminKey secret must be hex.");
+
+        const iat = Math.floor(Date.now() / 1000);
+        const exp = iat + 5 * 60;
+        const header = { alg: "HS256", typ: "JWT", kid };
+        const jwtPayload = { iat, exp, aud: "/admin/" };
+        const unsigned = `${base64UrlEncodeJson(header)}.${base64UrlEncodeJson(jwtPayload)}`;
+
+        const cryptoKey = await crypto.subtle.importKey(
+          "raw",
+          secret,
+          { name: "HMAC", hash: "SHA-256" },
+          false,
+          ["sign"]
+        );
+
+        const sig = await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(unsigned));
+        const token = `${unsigned}.${base64UrlEncodeBytes(new Uint8Array(sig))}`;
+
+        const endpoint = `${siteUrl}/ghost/api/admin/posts/?source=html`;
+        const post = {
+          title,
+          html,
+          status: publish ? "published" : "draft",
+          ...(featureImage ? { feature_image: featureImage } : {}),
+          ...(tags.length ? { tags: tags.map((name) => ({ name })) } : {})
+        };
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "authorization": `Ghost ${token}`
+          },
+          body: JSON.stringify({ posts: [post] })
+        });
+
+        const text = await res.text();
+        let data;
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch {
+          data = null;
+        }
+
+        if (!res.ok) {
+          const msg = data?.errors?.[0]?.message || text || `Ghost request failed (HTTP ${res.status}).`;
+          throw new Error(msg);
+        }
+
+        return withCors(request, json({ ok: true, post: data?.posts?.[0] || null }, { headers: corsHeaders(request) }));
+      }
+
+      if (url.pathname === "/v1/publish/wordpress" && request.method === "POST") {
+        const payload = await request.json();
+        const siteUrl = String(payload.siteUrl || "").trim().replace(/\/+$/, "");
+        const username = String(payload.username || "").trim();
+        const appPassword = String(payload.appPassword || payload.password || "").trim();
+        const title = String(payload.title || "Untitled").trim() || "Untitled";
+        const content = String(payload.html || payload.content || "");
+
+        if (!siteUrl) throw new Error("Missing WordPress siteUrl.");
+        if (!username) throw new Error("Missing WordPress username.");
+        if (!appPassword) throw new Error("Missing WordPress application password.");
+        if (!content.trim()) throw new Error("Missing content.");
+
+        const endpoint = `${siteUrl}/wp-json/wp/v2/posts`;
+        const basic = btoa(`${username}:${appPassword}`);
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "authorization": `Basic ${basic}`
+          },
+          body: JSON.stringify({
+            title,
+            content,
+            status: "draft"
+          })
+        });
+
+        const text = await res.text();
+        let data;
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch {
+          data = null;
+        }
+
+        if (!res.ok) {
+          const msg = data?.message || text || `WordPress request failed (HTTP ${res.status}).`;
+          throw new Error(msg);
+        }
+
+        return withCors(request, json({ ok: true, post: data }, { headers: corsHeaders(request) }));
+      }
+
       if (url.pathname === "/v1/export" && request.method === "POST") {
         const payload = await request.json();
         // Transport-only: just echo back a normalized export envelope.

@@ -336,6 +336,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let generationOptions = { ...GENERATION_OPTIONS_DEFAULTS };
   let articleMarkdown = "";
   let imagePromptsMarkdown = "";
+  let lastSeoMetadata = null;
   let lastKeyword = "";
 
   let lastObservedApiKey = "";
@@ -4073,6 +4074,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderMetadata(metadata) {
     if (!metadata) return;
+    lastSeoMetadata = metadata;
     if (seoTitleText) {
       seoTitleText.textContent = metadata.seo_title || "Awaiting title";
     }

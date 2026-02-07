@@ -1,5 +1,6 @@
 const ALLOWED_ORIGINS = new Set([
   "https://openseo.studio",
+  "https://app.openseo.studio",
   "https://api.openseo.studio"
 ]);
 

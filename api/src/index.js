@@ -74,6 +74,33 @@ function bearerToken(request) {
   return match ? match[1].trim() : "";
 }
 
+/* ---------- tiny helpers (no deps, Cloudflare Worker compatible) ---------- */
+
+function base64UrlEncodeBytes(bytes) {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+
+function base64UrlEncodeJson(obj) {
+  const jsonText = JSON.stringify(obj);
+  const bytes = new TextEncoder().encode(jsonText);
+  return base64UrlEncodeBytes(bytes);
+}
+
+function hexToBytes(hex) {
+  const cleaned = String(hex || "").trim().replace(/^0x/i, "");
+  if (!cleaned || cleaned.length % 2 !== 0 || /[^0-9a-f]/i.test(cleaned)) return null;
+  const out = new Uint8Array(cleaned.length / 2);
+  for (let i = 0; i < cleaned.length; i += 2) {
+    out[i / 2] = parseInt(cleaned.slice(i, i + 2), 16);
+  }
+  return out;
+}
+
 async function safeReadText(res, max = 2000) {
   const text = await res.text();
   if (text.length <= max) return text;

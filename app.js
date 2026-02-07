@@ -2695,44 +2695,44 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function sendPostToGhost({ adminUrl, adminKey, title, html, tags, featureImage, publish }) {
     const siteUrl = normalizeGhostSiteUrl(adminUrl);
-    if (!siteUrl) throw new Error("Ghost Admin API URL is required.");
+    if (!siteUrl) throw new Error("Ghost site URL is required.");
     if (!adminKey) throw new Error("Ghost Admin API key is required.");
 
-    const token = await createGhostAdminToken(adminKey);
-    const endpoint = `${siteUrl}/ghost/api/admin/posts/?source=html`;
+    const gateway = getApiGatewayConfig();
+    if (!gateway.enabled) {
+      throw new Error("Enable ‘Use API endpoint’ in Settings to publish to Ghost.");
+    }
 
-    const post = {
-      title: title || "Untitled",
-      html,
-      status: publish ? "published" : "draft",
-      ...(featureImage ? { feature_image: featureImage } : {}),
-      ...(tags && tags.length ? { tags: tags.map((name) => ({ name })) } : {})
-    };
+    const endpoint = `${gateway.baseUrl.replace(/\/+$/, "")}/v1/publish/ghost`;
 
     const res = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        Authorization: `Ghost ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ posts: [post] })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        siteUrl,
+        adminKey,
+        title: title || "Untitled",
+        html,
+        tags,
+        featureImage,
+        publish: !!publish
+      })
     });
 
     const bodyText = await res.text();
     let data = null;
     try {
       data = bodyText ? JSON.parse(bodyText) : null;
-    } catch (err) {
+    } catch {
       data = null;
     }
 
     if (!res.ok) {
-      const msg = data?.errors?.[0]?.message || bodyText || `Ghost request failed (HTTP ${res.status}).`;
-      throw new Error(msg);
+      const msg = data?.error || data?.message || bodyText || `Ghost request failed (HTTP ${res.status}).`;
+      throw new Error(String(msg).slice(0, 500));
     }
 
-    const created = data?.posts?.[0];
-    return created || null;
+    return data?.post || null;
   }
 
   function openExportModal(platform) {
@@ -2856,7 +2856,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     exportModalBody.innerHTML = `
       <p class="small-note">
-        This uses the <strong>Ghost Admin API</strong> directly from your browser (BYOC). Your key is only stored locally if you enable “Remember”.
+        This creates a <strong>draft</strong> in Ghost via your API gateway. Enable <strong>Use API endpoint</strong> in Settings for reliability (CORS).
       </p>
 
       <label class="field-label" for="ghostAdminUrl">

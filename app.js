@@ -2847,7 +2847,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Direct Ghost Admin API call
-    const jwt = await createGhostAdminJwt(adminKey);
+    const jwt = await createGhostAdminToken(adminKey);
     const apiUrl = `${siteUrl.replace(/\/+$/, "")}/ghost/api/admin/posts/?source=html`;
 
     const payload = {

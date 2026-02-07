@@ -2,13 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>OpenSEO Studio v1.5.0 – AI-powered SEO article generator</title>
+  <title>OpenSEO Studio v1.5.1 – AI-powered SEO article generator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="OpenSEO Studio is a fully client-side SEO article generator powered by OpenRouter. Bring your own API key, keep full control, and generate clean Markdown content.">
   <meta name="color-scheme" content="dark light">
   <meta name="theme-color" content="#2563eb">
+  <!-- Reduce "sticky" caching issues on some browsers/CDNs -->
+  <meta http-equiv="Cache-Control" content="no-store, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <script>
-    window.ASSET_VERSION = "1.5.0";
+    // Bump this on every deploy to force cache-busting for static assets.
+    window.ASSET_VERSION = "1.5.1";
     const stylesheet = document.createElement("link");
     stylesheet.rel = "stylesheet";
     stylesheet.href = `style.css?v=${window.ASSET_VERSION}`;
@@ -566,20 +571,17 @@
 
   <footer class="footer">
     <p class="footer-text">
-      OpenSEO Studio v1.5.0 – fully static, MIT-licensed, BYOK SEO writing tool.
+      OpenSEO Studio v1.5.1 – fully static, MIT-licensed, BYOK SEO writing tool.
     </p>
   </footer>
 
-  <script>
-    const appScript = document.createElement("script");
-    appScript.src = `app.js?v=${window.ASSET_VERSION}`;
-    document.body.appendChild(appScript);
-  </script>
+  <!-- Load after DOM is parsed to avoid race conditions with overlays/menu wiring -->
+  <script src="app.js?v=1.5.1" defer></script>
   <aside class="modal-overlay" id="welcomeOverlay" aria-hidden="true">
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle" aria-describedby="welcomeDescription">
       <div class="modal-header">
         <div>
-          <p class="panel-title" id="welcomeTitle">Welcome to OpenSEO Studio v1.5.0</p>
+          <p class="panel-title" id="welcomeTitle">Welcome to OpenSEO Studio v1.5.1</p>
           <p class="panel-sub">Your 3-step setup</p>
         </div>
       </div>
@@ -638,7 +640,7 @@
     <div class="modal-header">
       <div>
         <p class="panel-title" id="aboutModalTitle">OpenSEO Studio</p>
-        <p class="panel-sub">v1.5.0</p>
+        <p class="panel-sub">v1.5.1</p>
       </div>
       <button class="icon-btn" id="closeAboutModalBtn" aria-label="Close about panel">✕</button>
     </div>

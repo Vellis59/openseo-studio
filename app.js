@@ -26,11 +26,9 @@ const CURATED_MODELS = {
     { id: "gemini-1.5-pro", label: "gemini-1.5-pro" },
     { id: "gemini-2.0-flash", label: "gemini-2.0-flash" }
   ],
-  ollama: [
-    { id: "llama3.1:8b", label: "llama3.1:8b" },
-    { id: "qwen2.5:7b", label: "qwen2.5:7b" },
-    { id: "mistral:7b", label: "mistral:7b" }
-  ]
+  // Ollama models are discovered dynamically via /api/tags.
+  // (We keep no curated list here on purpose.)
+  ollama: []
 };
 
 const SW_DEBUG_PARAM = "debugSW";
@@ -514,33 +512,70 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateReloadModelsButton() {
     if (!reloadModelsBtn) return;
     const provider = getSelectedProvider ? getSelectedProvider() : CHAT_PROVIDERS.openrouter;
-    if (provider !== CHAT_PROVIDERS.openrouter) {
-      reloadModelsBtn.disabled = true;
+
+    if (provider === CHAT_PROVIDERS.openrouter) {
+      const key = apiKeyInput ? sanitizeApiKey(apiKeyInput.value) : "";
+      reloadModelsBtn.disabled = !looksLikeOpenRouterKey(key);
       return;
     }
-    const key = apiKeyInput ? sanitizeApiKey(apiKeyInput.value) : "";
-    reloadModelsBtn.disabled = !looksLikeOpenRouterKey(key);
+
+    if (provider === CHAT_PROVIDERS.ollama) {
+      const baseUrl = getOllamaBaseUrl ? getOllamaBaseUrl() : "";
+      reloadModelsBtn.disabled = !String(baseUrl || "").trim();
+      return;
+    }
+
+    reloadModelsBtn.disabled = true;
   }
 
   function scheduleModelsReload({ force = false } = {}) {
     const provider = getSelectedProvider ? getSelectedProvider() : CHAT_PROVIDERS.openrouter;
-    if (provider !== CHAT_PROVIDERS.openrouter) return;
-    const key = apiKeyInput ? sanitizeApiKey(apiKeyInput.value) : "";
-    updateReloadModelsButton();
-    if (!looksLikeOpenRouterKey(key)) return;
-    if (!force && key && key === lastModelsLoadedKey) return;
 
-    if (reloadModelsTimer) {
-      window.clearTimeout(reloadModelsTimer);
+    if (provider === CHAT_PROVIDERS.openrouter) {
+      const key = apiKeyInput ? sanitizeApiKey(apiKeyInput.value) : "";
+      updateReloadModelsButton();
+      if (!looksLikeOpenRouterKey(key)) return;
+      if (!force && key && key === lastModelsLoadedKey) return;
+
+      if (reloadModelsTimer) {
+        window.clearTimeout(reloadModelsTimer);
+      }
+
+      reloadModelsTimer = window.setTimeout(() => {
+        reloadModelsTimer = null;
+        fetchAndPopulateModels(key, { force }).catch(() => {
+          // fetchAndPopulateModels handles status/UI
+        });
+      }, 800);
+
+      return;
     }
 
-    reloadModelsTimer = window.setTimeout(() => {
-      reloadModelsTimer = null;
-      fetchAndPopulateModels(key, { force }).catch(() => {
-        // fetchAndPopulateModels handles status/UI
-      });
-    }, 350);
+    if (provider === CHAT_PROVIDERS.ollama) {
+      const baseUrl = getOllamaBaseUrl ? getOllamaBaseUrl() : "";
+      updateReloadModelsButton();
+      if (!String(baseUrl || "").trim()) return;
+      if (!force && baseUrl && baseUrl === lastModelsLoadedKey) return;
+
+      if (reloadModelsTimer) {
+        window.clearTimeout(reloadModelsTimer);
+      }
+
+      reloadModelsTimer = window.setTimeout(() => {
+        reloadModelsTimer = null;
+        fetchAndPopulateOllamaModels(baseUrl, { force }).catch(() => {
+          // fetchAndPopulateOllamaModels handles status/UI
+        });
+      }, 800);
+
+      return;
+    }
+
+    // no-op for other providers
+    return;
   }
+
+  // (removed legacy scheduleModelsReload block)
 
   function xorEncrypt(text, password) {
     if (!password) return base64Encode(text);
@@ -974,10 +1009,16 @@ document.addEventListener("DOMContentLoaded", () => {
       const key = apiKeyInput ? sanitizeApiKey(apiKeyInput.value) : "";
       updateReloadModelsButton();
       if (!looksLikeOpenRouterKey(key)) {
-        clearModelOptions();
+        clearModelOptions("Enter your API key to load models");
         return;
       }
       await fetchAndPopulateModels(key, { force });
+      return;
+    }
+
+    if (provider === CHAT_PROVIDERS.ollama) {
+      updateReloadModelsButton();
+      await fetchAndPopulateOllamaModels(getOllamaBaseUrl(), { force });
       return;
     }
 
@@ -1861,7 +1902,64 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  /* ---------- Load models from OpenRouter ---------- */
+  /* ---------- Load models from OpenRouter / Ollama ---------- */
+
+  async function fetchAndPopulateOllamaModels(baseUrl, { force = false } = {}) {
+    if (!modelSelect) return;
+
+    const resolved = String(baseUrl || "").trim().replace(/\/+$/, "");
+    if (!resolved) {
+      statusEl.textContent = "Please provide your Ollama base URL in the settings menu.";
+      statusEl.classList.add("error");
+      clearModelOptions();
+      updateReloadModelsButton();
+      return;
+    }
+
+    if (!force && resolved === lastModelsLoadedKey) {
+      updateReloadModelsButton();
+      return;
+    }
+
+    modelSelect.disabled = true;
+    statusEl.classList.remove("error");
+    statusEl.classList.add("loading");
+    statusEl.textContent = "Loading models from Ollama...";
+
+    try {
+      const response = await fetch(`${resolved}/api/tags`);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text?.slice(0, 300) || `Unable to fetch Ollama models (${response.status}).`);
+      }
+
+      const payload = await response.json();
+      const models = Array.isArray(payload?.models) ? payload.models : [];
+
+      const mapped = models
+        .map((m) => ({
+          id: m?.name,
+          name: m?.name,
+          description: m?.digest ? `${m.digest}` : undefined
+        }))
+        .filter((m) => m?.id);
+
+      populateModelOptions(mapped);
+      lastModelsLoadedKey = resolved;
+      updateReloadModelsButton();
+      statusEl.classList.remove("loading");
+      statusEl.textContent = mapped.length
+        ? "Ollama models loaded. Choose your preferred model."
+        : "No local Ollama models found (pull one first).";
+    } catch (err) {
+      console.error("fetchAndPopulateOllamaModels error:", err);
+      statusEl.classList.remove("loading");
+      statusEl.classList.add("error");
+      statusEl.textContent = `Could not load Ollama models: ${err.message}`;
+      clearModelOptions("Enter your Ollama base URL to load models");
+      updateReloadModelsButton();
+    }
+  }
 
   async function fetchAndPopulateModels(apiKey, { force = false } = {}) {
     if (!modelSelect) return;
@@ -1870,7 +1968,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!sanitizedKey) {
       statusEl.textContent = "Please provide a valid OpenRouter API key.";
       statusEl.classList.add("error");
-      clearModelOptions();
+      clearModelOptions("Enter your API key to load models");
       updateReloadModelsButton();
       return;
     }
@@ -1920,7 +2018,7 @@ document.addEventListener("DOMContentLoaded", () => {
       statusEl.classList.remove("loading");
       statusEl.classList.add("error");
       statusEl.textContent = `Could not load models: ${err.message}`;
-      clearModelOptions();
+      clearModelOptions("Enter your API key to load models");
       updateReloadModelsButton();
     }
   }
@@ -1965,12 +2063,12 @@ document.addEventListener("DOMContentLoaded", () => {
     modelSelect.disabled = false;
   }
 
-  function clearModelOptions() {
+  function clearModelOptions(placeholderText) {
     if (!modelSelect) return;
     modelSelect.innerHTML = "";
     const placeholder = document.createElement("option");
     placeholder.value = "";
-    placeholder.textContent = "Enter your API key to load models";
+    placeholder.textContent = placeholderText || "Enter your API key to load models";
     modelSelect.appendChild(placeholder);
     modelSelect.disabled = true;
     removeItem(STORAGE_KEY_MODEL);

@@ -2800,24 +2800,82 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!adminKey) throw new Error("Ghost Admin API key is required.");
 
     const gateway = getApiGatewayConfig();
-    if (!gateway.enabled) {
-      throw new Error("Enable ‘Use API endpoint’ in Settings to publish to Ghost.");
+
+    // If a gateway is enabled and correctly configured, use it.
+    // Otherwise, fall back to calling the Ghost Admin API directly from the browser.
+    // (This may fail on some setups due to CORS, but it's the expected BYOK behavior.)
+    const gatewayBase = String(gateway?.baseUrl || "").trim().replace(/\/+$/, "");
+    const looksLikeOpenRouter = /openrouter\.ai\/?api\/?v1/i.test(gatewayBase);
+
+    if (gateway?.enabled && gatewayBase && !looksLikeOpenRouter) {
+      const endpoint = `${gatewayBase}/v1/publish/ghost`;
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          siteUrl,
+          adminKey,
+          title: title || "Untitled",
+          html,
+          tags,
+          featureImage,
+          publish: !!publish
+        })
+      });
+
+      const bodyText = await res.text();
+      let data = null;
+      try {
+        data = bodyText ? JSON.parse(bodyText) : null;
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        const msg = data?.error || data?.message || bodyText || `Ghost request failed (HTTP ${res.status}).`;
+        throw new Error(String(msg).slice(0, 500));
+      }
+
+      return data?.post || null;
     }
 
-    const endpoint = `${gateway.baseUrl.replace(/\/+$/, "")}/v1/publish/ghost`;
+    if (gateway?.enabled && looksLikeOpenRouter) {
+      throw new Error(
+        "Your API gateway base URL is set to OpenRouter (openrouter.ai). Ghost publishing needs either a Ghost-compatible gateway (/v1/publish/ghost) or direct Ghost Admin API access. Disable ‘Use API endpoint’ or set it to your gateway domain."
+      );
+    }
 
-    const res = await fetch(endpoint, {
+    // Direct Ghost Admin API call
+    const jwt = await createGhostAdminJwt(adminKey);
+    const apiUrl = `${siteUrl.replace(/\/+$/, "")}/ghost/api/admin/posts/?source=html`;
+
+    const payload = {
+      posts: [
+        {
+          title: (title || "Untitled").trim(),
+          html: html || "",
+          status: publish ? "published" : "draft",
+          ...(featureImage ? { feature_image: featureImage } : {}),
+          ...(tags && tags.length
+            ? {
+                tags: tags
+                  .filter(Boolean)
+                  .map((t) => ({ name: String(t).trim() }))
+                  .filter((t) => t.name)
+              }
+            : {})
+        }
+      ]
+    };
+
+    const res = await fetch(apiUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        siteUrl,
-        adminKey,
-        title: title || "Untitled",
-        html,
-        tags,
-        featureImage,
-        publish: !!publish
-      })
+      headers: {
+        "content-type": "application/json",
+        authorization: `Ghost ${jwt}`
+      },
+      body: JSON.stringify(payload)
     });
 
     const bodyText = await res.text();
@@ -2829,11 +2887,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (!res.ok) {
-      const msg = data?.error || data?.message || bodyText || `Ghost request failed (HTTP ${res.status}).`;
-      throw new Error(String(msg).slice(0, 500));
+      const msg = data?.errors?.[0]?.message || data?.error || data?.message || bodyText || `Ghost request failed (HTTP ${res.status}).`;
+      throw new Error(String(msg).slice(0, 700));
     }
 
-    return data?.post || null;
+    return data?.posts?.[0] || null;
   }
 
   function openExportModal(platform) {

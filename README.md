@@ -5,104 +5,104 @@ OpenSEO Studio is a **fully client-side, static SEO writing tool** powered by AI
 No backend. No database. Bring Your Own API Key (BYOK).  
 Your API key stays in your browser — you keep full control.
 
-This repository contains **OpenSEO Studio v1.5.0**, including split-screen editing, light/dark theme controls, refreshed mobile UX, multilingual SEO output, client-side persistence & security controls, multi-provider BYOC (OpenRouter/OpenAI/Anthropic/Gemini/Ollama), optional API gateway mode, and export-ready actions (Markdown + JSON).
+---
+
+## ✨ What's New in v2.0.0
+
+### 🎨 Premium Visual Overhaul
+- **Glassmorphism design** — transparency effects, backdrop blur, subtle borders for a modern look
+- **Typography** — Inter (body) + Outfit (headings) via Google Fonts
+- **Micro-animations** — smooth transitions on buttons, inputs, and side panels
+- **Refined light & dark themes** — harmonious HSL color palette
+
+### 🏗️ Modular Architecture & Performance
+- **Migrated to Vite** — ultra-fast HMR in dev, optimized bundle in production
+- **Modularized codebase** — the original 5,000-line monolith (`app.js`) split into logical modules:
+  - `src/api/` — centralized API calls (OpenRouter, OpenAI, Ollama, etc.) and prompt engineering
+  - `src/services/` — local storage and history management
+  - `src/utils/` — SEO analysis, readability scoring, and text processing
+- **Cleaned up** — removed redundancies, switched to ES6 modules (import/export)
+
+### 🚀 Powerful New Features
+- **Radial SEO Gauge** — animated SVG chart showing your real-time SEO score with premium styling
+- **Full Export Suite**:
+  - **PDF** — generate formatted PDF files directly in the browser
+  - **Word (.docx)** — clean export to Microsoft Word with proper heading hierarchy
+  - **Quick Copy** — one-click Markdown copy with visual feedback
+- **PWA Support**:
+  - Installable on desktop and mobile as a native-like app
+  - **Offline mode** — essential files cached via Service Worker for instant loading
+  - Custom premium app icon for home screen
+
+### 🌍 Deployment Optimization
+- `package.json` set to `type: "module"` for ES module compatibility
+- CSS linking standardized for perfect Vite build on Vercel
 
 ---
 
-## Features (v1.5.0)
+## Core Features
 
-### 🧩 Core Functionality
-- 100% client-side, static HTML/CSS/JS
+- 100% client-side, static HTML/CSS/JS — no backend, no database
 - SEO-optimized long-form article generation
 - Markdown-only output (no HTML, no front matter, no emojis)
-- Supports a curated list of 20+ output languages with strict single-language prompts
-
-### 🔧 AI Model Selection (Dynamic via OpenRouter)
-
-OpenSEO Studio no longer uses a fixed list of AI models.
-
-When you enter your OpenRouter API key, the app automatically fetches all models available on your account (including premium, BYOK and new models), and updates the selector in real time.
-
-✔ Always up to date
-✔ No hard-coded list
-✔ Models depend on your API key
-
-(The model list is dynamically loaded — it may differ for each user)
-
-### ✨ New in v1.5.0
-- **Multi-provider BYOC**: OpenRouter, OpenAI, Anthropic, Gemini (AI Studio), and Ollama.
-- **Optional API gateway mode**: route requests through your own endpoint (Cloudflare Workers supported).
-
-### ✨ New in v1.1.1
-- **Reload models**: manually reload OpenRouter models + auto-refresh when the API key changes (better for automation).
-- **Export JSON**: download or copy a JSON bundle (keyword + settings + plan/article Markdown + SEO metadata + image prompts).
-
-### ✨ New in v1.1.0
-- **Image prompts**: generate AI image prompt Markdown separately from article drafts.
-- **Export (Markdown)**: download article-only or article + image prompts.
-
-### ✅ Previously in v1.0.0
-- **About / Manifesto panel** with version, philosophy, and quick links.
-- **Welcome screen** for first-time setup guidance (BYOK + privacy).
-- **UI**: version bump to v1.0.0 and refined onboarding flow.
-
-### ✅ Previously in v0.9.4
-- **Export entry point** next to Copy Markdown (Download .md + CMS placeholders).
-- **Download .md** export with readable, dated filenames.
-- **Ghost + WordPress placeholders** with required fields listed for future integration.
-- **UI**: fix light mode contrast
-
-### ✅ Previously in v0.9.3
-- **Contextual generation options panel** for prompt mode and TOC toggles, scoped to generation only.
-- **Generation-only preferences** stored separately from global settings and skipped in anonymous mode.
-
-
+- 20+ output languages with strict single-language prompts
+- Dynamic AI model selection via OpenRouter (auto-fetches models available on your key)
+- Multi-provider BYOC: OpenRouter, OpenAI, Anthropic, Gemini (AI Studio), and Ollama
+- Optional API gateway mode (Cloudflare Workers supported)
+- Export: Markdown, JSON bundle, PDF, Word (.docx)
+- Image prompt generation
 
 ---
 
 ## How to Use
 
-1. Open the **Settings** menu (top-right)  
-2. Paste your **OpenRouter API key**  
-3. Select an AI model  
-4. Enter a main keyword  
-5. Configure tone, length, language  
-6. (Optional) Select a preset  
-7. Click **Generate article**  
-8. Copy the Markdown output to your CMS or editor  
+1. Open the **Settings** menu (top-right)
+2. Paste your **OpenRouter API key**
+3. Select an AI model
+4. Enter a main keyword
+5. Configure tone, length, language
+6. Click **Generate article**
+7. Export or copy the output
 
-All requests go **directly from your browser to OpenRouter**.  
+All requests go **directly from your browser to the AI provider**.  
 Nothing is stored server-side.
 
 ---
 
 ## Running Locally
 
-OpenSEO Studio is fully static and can run locally without installation.
-
-
-### Option 1 — Double-click
-Simply open `index.html` in any modern browser.
-
-### Option 2 — Local static server
 ```bash
-python -m http.server 8080
-Then visit:
-http://localhost:8080/
+# Install dependencies
+npm install
 
-## Cloud deployment
+# Start dev server
+npm run dev
 
-Deploy the contents of this repository to **Cloudflare Pages** (or any static host).
+# Build for production
+npm run build
+```
 
-### Service worker cleanup (if you previously used one)
+Or simply open `index.html` in any modern browser.
 
-If an older service worker is still controlling the site, open the deployed site once with:
+---
 
-`https://<your-domain>/?resetSW=1`
+## Deployment
 
-This unregisters any service workers and clears caches. To confirm status in the console, use:
+Deploy to **Cloudflare Pages**, **Vercel**, or any static host.
 
-`https://<your-domain>/?debugSW=1`
+### Service worker cleanup (if upgrading from an older version)
+
+```
+https://<your-domain>/?resetSW=1
+```
+
+To check status:
+```
+https://<your-domain>/?debugSW=1
+```
+
+---
 
 ## License
-Released under the MIT License. See the LICENSE file for details.
+
+Released under the MIT License. See the [LICENSE](LICENSE) file for details.

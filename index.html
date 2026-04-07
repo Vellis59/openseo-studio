@@ -20,9 +20,23 @@
     document.head.appendChild(stylesheet);
   </script>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
 </head>
 <body>
+  <span style="display: none;">
+    <svg width="0" height="0">
+      <defs>
+        <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:var(--primary-main);stop-opacity:1" />
+          <stop offset="100%" style="stop-color:var(--accent-main);stop-opacity:1" />
+        </linearGradient>
+      </defs>
+    </svg>
+  </span>
   <header class="topbar">
     <div class="topbar-left">
       <div class="logo-circle">OS</div>
@@ -502,10 +516,10 @@
                 </div>
               </div>
               <div class="panel preview-panel" id="previewPanel" aria-live="polite">
-                <div class="panel-header">
-                  <div>
-                    <p class="panel-title">Live preview</p>
-                    <p class="panel-sub">Rendered HTML, ready for CMS or notes.</p>
+                  <div class="preview-actions">
+                    <button type="button" id="copyMarkdownBtn" class="btn-ghost">Copy</button>
+                    <button type="button" id="exportPdfBtn" class="btn-ghost">PDF</button>
+                    <button type="button" id="exportWordBtn" class="btn-ghost">Word</button>
                   </div>
                 </div>
                 <div id="preview" class="preview-area">
@@ -522,13 +536,14 @@
                   <p class="panel-title">SEO Analyzer</p>
                   <p class="panel-sub">Local checks for headings, density, and length.</p>
                 </div>
-                <div class="seo-score-chip">
-                  <span id="seoScoreValue">—</span>
-                  <small>/100</small>
+              <div class="seo-gauge-container">
+                <div class="seo-gauge-wrapper" id="seoGaugeWrapper">
+                  <!-- Radial SVG injected via JS -->
+                  <div class="seo-gauge-score">
+                    <span id="seoScoreValue">—</span>
+                    <small>/100</small>
+                  </div>
                 </div>
-              </div>
-              <div class="score-bar" aria-hidden="true">
-                <div id="seoScoreBar"></div>
               </div>
               <ul class="insight-list" id="seoChecksList"></ul>
               <div class="insight-suggestions">
@@ -605,7 +620,14 @@
   </footer>
 
   <!-- Load after DOM is parsed to avoid race conditions with overlays/menu wiring -->
-  <script src="app.js?v=1.6.0" defer></script>
+  <script src="src/main.js" type="module" defer></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration failed', err));
+      });
+    }
+  </script>
   <aside class="modal-overlay" id="welcomeOverlay" aria-hidden="true">
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle" aria-describedby="welcomeDescription">
       <div class="modal-header">

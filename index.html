@@ -1,732 +1,150 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
-  <title>OpenSEO Studio v2.0.0 – AI-powered SEO article generator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenSEO Studio v2.2 – AI-powered SEO article generator</title>
   <meta name="description" content="OpenSEO Studio is a fully client-side SEO article generator powered by OpenRouter. Bring your own API key, keep full control, and generate clean Markdown content.">
-  <meta name="color-scheme" content="dark light">
-  <meta name="theme-color" content="#2563eb">
-  <!-- Reduce "sticky" caching issues on some browsers/CDNs -->
-  <meta http-equiv="Cache-Control" content="no-store, max-age=0">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/layout.css">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="manifest" href="manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
 </head>
 <body>
-  <span style="display: none;">
-    <svg width="0" height="0">
-      <defs>
-        <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:var(--primary-main);stop-opacity:1" />
-          <stop offset="100%" style="stop-color:var(--accent-main);stop-opacity:1" />
-        </linearGradient>
-      </defs>
-    </svg>
-  </span>
-  <header class="topbar">
-    <div class="topbar-left">
-      <div class="logo-circle">OS</div>
-      <div class="topbar-title">
-        <span class="title-main">OpenSEO Studio</span>
-        <span class="title-sub">Static, BYOK, SEO-focused</span>
+  <!-- Header -->
+  <header class="header">
+    <div class="header__left">
+      <div class="header__logo">OS</div>
+      <div class="header__brand">
+        <span class="header__title">OpenSEO Studio</span>
+        <span class="header__tagline">Static, BYOK, SEO-focused</span>
       </div>
     </div>
 
-    <div class="topbar-actions">
-      <button class="about-link" id="aboutToggle" type="button">
-        About
-      </button>
-      <button class="menu-toggle" id="themeToggle" aria-label="Toggle color theme">
+    <div class="header__actions">
+      <button class="icon-btn" id="themeToggle" aria-label="Toggle theme">
         🌗
       </button>
-      <button class="menu-toggle" id="menuToggle" aria-label="Open settings">
-        ☰
+      <button class="icon-btn" id="settingsToggle" aria-label="Settings">
+        ⚙️
       </button>
     </div>
+  </header>
 
-    <div class="menu-panel" id="menuPanel" aria-hidden="true">
-      <h2 class="menu-title">Settings</h2>
+  <!-- Main Content -->
+  <main class="page">
+    <!-- Hero Section -->
+    <section class="card" style="margin-bottom: 2rem;">
+      <div style="text-align: center; padding:1rem;">
+        <h1 style="margin-bottom: 0.5rem;">SEO article generator with auto-save & version history</h1>
+        <p class="text-secondary" style="max-width: 600px; margin: 0 auto 1rem;">
+          OpenSEO Studio is a fully static, BYOK SEO writing tool with auto-save,
+          version history, and AI-powered plan generation.
+          No backend, no account, no tracking. Just your API key and clean Markdown output.
+        </p>
+        <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+          <span class="badge">100% front-end</span>
+          <span class="badge">BYOK via OpenRouter</span>
+          <span class="badge">Auto-save</span>
+          <span class="badge">Version history</span>
+        </div>
+      </div>
+    </section>
 
-      <!-- Settings sections restructured for v0.9.2 -->
-      <section class="settings-section">
-        <h3 class="settings-heading">Identity &amp; security</h3>
+    <!-- Tab Container -->
+    <div id="tabContainer"></div>
 
-        <label class="field-label" for="providerSelect">
-          Provider
-          <span class="field-help">Choose where requests are sent (BYOK).</span>
-        </label>
-        <select id="providerSelect" class="field-input">
-          <option value="openrouter" selected>OpenRouter</option>
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic</option>
-          <option value="gemini">Gemini (AI Studio)</option>
-          <option value="ollama">Ollama (local)</option>
-        </select>
+    <!-- Status & Progress -->
+    <div style="margin-top: 1rem;">
+      <div id="status" class="status" style="display: none;"></div>
+      <div id="progressContainer" style="display: none; margin-top: 0.5rem;">
+        <div class="progress">
+          <div class="progress__bar" id="progressBar" style="width: 0%;"></div>
+        </div>
+        <p class="text-xs text-secondary mt-sm" id="progressLabel">Ready</p>
+      </div>
+    </div>
+  </main>
 
-        <label class="field-label" for="apiKey">
-          <span id="apiKeyLabelText">API key</span>
-          <span class="field-help" id="apiKeyHelpText">Stored only in your browser if you choose so.</span>
-        </label>
-        <input
-          type="password"
-          id="apiKey"
-          class="field-input"
-          placeholder="sk-..."
-          autocomplete="off"
-        >
-
-        <div id="ollamaBaseUrlRow" class="hidden">
-          <label class="field-label" for="ollamaBaseUrl">
-            Ollama base URL
-            <span class="field-help">Default: http://localhost:11434</span>
-          </label>
-          <input
-            type="url"
-            id="ollamaBaseUrl"
-            class="field-input"
-            placeholder="http://localhost:11434"
-            autocomplete="off"
-          >
+  <!-- Settings Panel -->
+  <aside class="settings-panel" id="settingsPanel" aria-hidden="true">
+    <div class="settings-panel__header">
+      <h2 class="settings-panel__title">Settings</h2>
+      <button class="icon-btn" id="closeSettingsBtn" aria-label="Close settings">✕</button>
+    </div>
+    <div class="settings-panel__content">
+      <!-- API Configuration -->
+      <div class="card" style="margin-bottom: 1rem;">
+        <div class="card__header">
+          <h3 class="card__title">API Configuration</h3>
         </div>
 
-        <label class="checkbox-row">
+        <div class="form-group">
+          <label class="form-label" for="providerSelect">Provider</label>
+          <select id="providerSelect" class="form-select">
+            <option value="openrouter" selected>OpenRouter</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="gemini">Gemini (AI Studio)</option>
+            <option value="ollama">Ollama (local)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="apiKeyInput">API Key</label>
+          <input type="password" id="apiKeyInput" class="form-input" placeholder="sk-..." autocomplete="off">
+          <small class="form-help">Stored only in your browser if you choose to remember it.</small>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="modelSelect">Model</label>
+          <select id="modelSelect" class="form-select" disabled>
+            <option value="">Enter API key to load models</option>
+          </select>
+        </div>
+
+        <button id="reloadModelsBtn" class="btn btn--secondary btn--sm" style="margin-top: 0.5rem;">
+          🔄 Reload Models
+        </button>
+      </div>
+
+      <!-- Preferences -->
+      <div class="card">
+        <div class="card__header">
+          <h3 class="card__title">Preferences</h3>
+        </div>
+
+        <label class="form-checkbox">
           <input type="checkbox" id="rememberKey">
           <span>Remember API key in this browser</span>
         </label>
 
-        <label class="field-label" for="masterPassword">
-          Master password (optional)
-          <span class="field-help">Used to encrypt your API key locally. Leave blank to use Base64.</span>
-        </label>
-        <input
-          type="password"
-          id="masterPassword"
-          class="field-input"
-          placeholder="No password set"
-          autocomplete="off"
-        >
-
-        <label class="checkbox-row">
+        <label class="form-checkbox">
           <input type="checkbox" id="anonymousMode">
           <span>Anonymous mode (no localStorage)</span>
         </label>
 
-        <div class="settings-divider"></div>
-
-        <label class="checkbox-row">
-          <input type="checkbox" id="useApiGateway">
-          <span>Use API endpoint (optional)</span>
-        </label>
-
-        <label class="checkbox-row">
-          <input type="checkbox" id="useWebResearch">
-          <span>Use web research (Perplexity) (optional)</span>
-        </label>
-        <div id="webResearchRow" class="hidden">
-          <p class="small-note">
-            Optional BYOK web research using Perplexity. Your Perplexity API key is stored only in your browser.
-          </p>
-
-          <label class="field-label" for="perplexityApiKey">
-            Perplexity API key
-            <span class="field-help">Stored locally (optional). Never sent to us except to call Perplexity.</span>
-          </label>
-          <input
-            type="password"
-            id="perplexityApiKey"
-            class="field-input"
-            placeholder="pplx-..."
-            autocomplete="off"
-          >
-
-          <div class="actions-row wrap">
-            <button type="button" id="webResearchBtn" class="btn-secondary">Fetch web research</button>
-            <button type="button" id="clearWebResearchBtn" class="btn-ghost">Clear</button>
-          </div>
-          <textarea id="webResearchPreview" class="field-input" rows="10" placeholder="Web research will appear here…" readonly></textarea>
-          <p class="small-note" id="webResearchStatus"></p>
-        </div>
-        <div id="apiGatewayRow" class="hidden">
-          <label class="field-label" for="apiGatewayBaseUrl">
-            API base URL
-            <span class="field-help">Example: https://api.openseo.studio</span>
-          </label>
-          <input
-            type="url"
-            id="apiGatewayBaseUrl"
-            class="field-input"
-            placeholder="https://api.openseo.studio"
-            autocomplete="off"
-          >
-          <p class="small-note">
-            When enabled, OpenSEO Studio calls your API gateway instead of talking to providers directly.
-          </p>
-        </div>
-      </section>
-
-      <section class="settings-section">
-        <h3 class="settings-heading">Defaults</h3>
-
-        <label class="field-label" for="modelSelect">
-          Default model
-          <span class="field-help" id="modelHelpText">
-            Enter your API key to load available models directly from OpenRouter.
-          </span>
-        </label>        <div class="model-row">
-          <select id="modelSelect" class="field-input" disabled>
-            <option value="">Enter your API key to load models</option>
-          </select>
-          <button type="button" id="reloadModelsBtn" class="btn-ghost" disabled>
-            Reload
+        <div style="margin-top: 1rem;">
+          <button id="exportConfigBtn" class="btn btn--secondary" style="margin-right: 0.5rem;">
+            📥 Export Config
           </button>
-        </div>
-<label class="field-label" for="presetSelect">
-          Default preset
-        </label>
-        <select id="presetSelect" class="field-input">
-          <option value="">None</option>
-          <option value="guide">Guide</option>
-          <option value="long">Long Article</option>
-          <option value="tutorial">Tutorial</option>
-          <option value="comparison">Comparison</option>
-          <option value="listicle">Listicle</option>
-          <option value="news">News</option>
-        </select>
-      </section>
-
-      <section class="settings-section expert-mode">
-        <div class="settings-section-header">
-          <h3 class="settings-heading">Advanced</h3>
-          <label class="checkbox-row expert-toggle">
-            <input type="checkbox" id="expertToggle">
-            <span>Expert mode</span>
-          </label>
-        </div>
-        <div id="expertPanel" class="expert-panel hidden">
-          <div class="grid-2">
-            <div>
-              <label class="field-label" for="temperatureInput">Temperature</label>
-              <input type="number" id="temperatureInput" class="field-input" min="0" max="2" step="0.1" value="0.7">
-            </div>
-            <div>
-              <label class="field-label" for="maxTokensInput">Max tokens</label>
-              <input type="number" id="maxTokensInput" class="field-input" min="256" max="4096" step="64" value="2048">
-            </div>
-            <div>
-              <label class="field-label" for="topPInput">Top-p</label>
-              <input type="number" id="topPInput" class="field-input" min="0" max="1" step="0.05" value="1">
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="settings-section">
-        <h3 class="settings-heading">Maintenance</h3>
-
-        <div class="config-actions">
-          <button type="button" id="exportConfigBtn" class="btn-secondary">Export config (JSON)</button>
-          <button type="button" id="importConfigBtn" class="btn-ghost">Import config</button>
-          <input type="file" id="importConfigInput" accept="application/json" hidden>
-        </div>
-
-        <button type="button" id="resetStorageBtn" class="btn-ghost menu-reset">
-          Reset local storage
-        </button>
-      </section>
-
-      <p class="menu-note">
-        OpenSEO Studio is 100% client-side.  
-        Your API key never leaves your browser except when calling OpenRouter directly.
-      </p>
-    </div>
-  </header>
-
-  <main class="page">
-    <section class="hero">
-      <h1>SEO article generator for people who hate bloated tools</h1>
-      <p class="hero-text">
-        OpenSEO Studio is a fully static, BYOK SEO writing tool.
-        No backend, no account, no tracking. Just your API key and clean Markdown output.
-      </p>
-      <div class="hero-badges">
-        <span class="badge">100% front-end</span>
-        <span class="badge">BYOK via OpenRouter</span>
-        <span class="badge">Markdown only</span>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2 class="card-title">Generate an SEO article</h2>
-      <p class="card-subtitle">
-        Enter your keyword, choose style and language, and let your model do the work.
-      </p>
-
-      <form id="seoForm" novalidate>
-        <label class="field-label" for="keyword">
-          Main keyword
-        </label>
-        <input
-          type="text"
-          id="keyword"
-          class="field-input"
-          placeholder="e.g. self-hosting a Ghost blog with Docker"
-          required
-        >
-
-        <div class="grid-3">
-          <div>
-            <label class="field-label" for="languageSelect">
-              Target language
-            </label>
-            <select id="languageSelect" class="field-input">
-              <option value="en" selected>English</option>
-              <option value="fr">French</option>
-              <option value="es">Spanish</option>
-              <option value="de">German</option>
-              <option value="it">Italian</option>
-              <option value="pt-pt">Portuguese (Portugal)</option>
-              <option value="pt-br">Portuguese (Brazil)</option>
-              <option value="nl">Dutch</option>
-              <option value="pl">Polish</option>
-              <option value="sv">Swedish</option>
-              <option value="da">Danish</option>
-              <option value="fi">Finnish</option>
-              <option value="no">Norwegian</option>
-              <option value="cs">Czech</option>
-              <option value="ro">Romanian</option>
-              <option value="hu">Hungarian</option>
-              <option value="el">Greek</option>
-              <option value="tr">Turkish</option>
-              <option value="id">Indonesian</option>
-              <option value="ja">Japanese</option>
-              <option value="ko">Korean</option>
-              <option value="zh-hans">Simplified Chinese</option>
-              <option value="zh-hant">Traditional Chinese</option>
-              <option value="ar">Arabic</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="field-label" for="toneSelect">
-              Tone
-            </label>
-            <select id="toneSelect" class="field-input">
-              <option value="clear and accessible" selected>Clear and accessible</option>
-              <option value="friendly and slightly edgy">Friendly and slightly edgy</option>
-              <option value="professional and neutral">Professional and neutral</option>
-              <option value="highly technical">Highly technical</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="field-label" for="lengthSelect">
-              Article length
-            </label>
-            <select id="lengthSelect" class="field-input">
-              <option value="short (~800 words)">Short (~800 words)</option>
-              <option value="standard (~1500 words)" selected>Standard (~1500 words)</option>
-              <option value="long (~2500 words)">Long (~2500 words)</option>
-              <option value="ultra-long (~3000 words)">Very long (~3000 words)</option>
-            </select>
-          </div>
-        </div>
-
-        <label class="field-label" for="extraInput">
-          Additional constraints (optional)
-          <span class="field-help">
-            For example: add a clickable table of contents, avoid cliché intros, no emojis, add a final checklist, etc.
-          </span>
-        </label>
-        <input
-          type="text"
-          id="extraInput"
-          class="field-input"
-          placeholder="e.g. include a table of contents, no cliché intro, no emojis..."
-        >
-
-        <div class="generation-controls">
-          <div class="actions-row">
-          <button type="button" id="planBtn" class="btn-secondary">Generate plan</button>
-          <button type="button" id="generateBtn" class="btn-primary">
-            Generate article
+          <button id="resetStorageBtn" class="btn btn--ghost">
+            🗑️ Reset Storage
           </button>
-          <button type="button" id="generateMetadataBtn" class="btn-secondary">
-            Generate SEO metadata
-          </button>
-          <button type="button" id="generateImagePromptsBtn" class="btn-secondary">
-            Generate image prompts
-          </button>
-          <button type="button" id="copyBtn" class="btn-secondary">
-            Copy Markdown
-          </button>
-          <div class="export-menu">
-            <button type="button" id="exportToggleBtn" class="btn-secondary" aria-expanded="false" aria-haspopup="true">
-              Export ▾
-            </button>
-            <div class="export-menu-panel" id="exportMenu" role="menu" aria-hidden="true">
-              <button type="button" class="export-menu-item" data-export-action="download-article" role="menuitem">
-                Download article only (.md)
-              </button>
-              <button type="button" class="export-menu-item" data-export-action="download-article-images" role="menuitem">
-                Download article + image prompts (.md)
-              </button>
-              <button type="button" class="export-menu-item" data-export-action="download-json" role="menuitem">
-                Download as JSON (.json)
-              </button>
-              <button type="button" class="export-menu-item" data-export-action="copy-json" role="menuitem">
-                Copy as JSON
-              </button>
-              <button type="button" class="export-menu-item" data-export-action="ghost" role="menuitem">
-                Send to Ghost…
-              </button>
-              <button type="button" class="export-menu-item" data-export-action="wordpress" role="menuitem">
-                Send to WordPress…
-              </button>
-            </div>
-          </div>
-          <button type="button" id="clearBtn" class="btn-ghost">
-            Clear output
-          </button>
-          <button type="button" id="openHistoryBtn" class="btn-ghost">
-            History
-          </button>
-          <button type="button" id="generationOptionsBtn" class="btn-ghost generation-options-toggle" aria-expanded="false">
-            Generation options
-          </button>
-          </div>
-
-          <div class="generation-options-panel" id="generationOptionsPanel" aria-hidden="true" role="dialog" aria-label="Generation options">
-            <p class="panel-title">Generation options</p>
-            <p class="panel-sub">Applied only to the current generation request.</p>
-            <label class="field-label" for="promptMode">Prompt mode</label>
-            <select id="promptMode" class="field-input">
-              <option value="standard" selected>Standard (balanced)</option>
-              <option value="minimal">Minimal (lean guidelines)</option>
-              <option value="strict-seo">Strict SEO (extended structure)</option>
-            </select>
-            <label class="checkbox-row">
-              <input type="checkbox" id="tocCheckbox">
-              <span>Add Markdown Table of Contents</span>
-            </label>
-            <p class="panel-sub">Image prompts</p>
-            <label class="field-label" for="imageStyleSelect">Image style preset</label>
-            <select id="imageStyleSelect" class="field-input">
-              <option value="modern-illustration" selected>Modern illustration (flat)</option>
-              <option value="isometric-tech">Isometric tech</option>
-              <option value="photorealistic">Photorealistic</option>
-              <option value="minimalist-diagram">Minimalist diagram</option>
-              <option value="3d-render">3D render (product-like)</option>
-            </select>
-            <label class="field-label" for="imageCountSelect">Section images count</label>
-            <select id="imageCountSelect" class="field-input">
-              <option value="0">0</option>
-              <option value="2" selected>2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-            </select>
-            <label class="checkbox-row">
-              <input type="checkbox" id="includeDiagramPrompt" checked>
-              <span>Include diagram / infographic prompt</span>
-            </label>
-            <label class="checkbox-row">
-              <input type="checkbox" id="includeNegativePrompt">
-              <span>Include negative prompt (Stable Diffusion)</span>
-            </label>
-          </div>
-        </div>
-
-        <p id="status" class="status-text"></p>
-
-        <div class="progress-shell" aria-hidden="true">
-          <div class="progress-bar" id="progressBar"></div>
-          <div class="progress-meta">
-            <span id="progressLabel">Ready</span>
-            <span id="etaLabel">—</span>
-          </div>
-        </div>
-
-        <div class="workflow">
-          <div class="step" id="stepPlan">Step 1: Plan</div>
-          <div class="step" id="stepReview">Step 2: Review</div>
-          <div class="step" id="stepGenerate">Step 3: Generate</div>
-        </div>
-
-        <div class="plan-panel">
-          <div class="split-header">
-            <div>
-              <label class="field-label" for="planEditor">Plan (H1/H2/H3)</label>
-              <p class="field-help">The AI drafts a plan. Tweak it before full generation.</p>
-            </div>
-            <button type="button" id="regeneratePlanBtn" class="btn-ghost">Regenerate plan</button>
-          </div>
-          <textarea id="planEditor" class="output-area plan-area" placeholder="Plan will appear here..." spellcheck="false"></textarea>
-        </div>
-
-        <div class="workspace-grid">
-          <div class="workspace-main">
-            <div class="split-header">
-              <div>
-                <label class="field-label" for="output">
-                  Markdown editor & live preview
-                </label>
-                <p class="field-help">See the rendered HTML as you type or generate.</p>
-              </div>
-              <div class="view-toggle" role="group" aria-label="Toggle editor or preview on mobile">
-                <button type="button" class="toggle-chip active" id="viewEditorBtn">Editor</button>
-                <button type="button" class="toggle-chip" id="viewPreviewBtn">Preview</button>
-              </div>
-            </div>
-
-            <div class="split-layout" id="splitLayout">
-              <div class="panel editor-panel" id="editorPanel">
-                <div class="panel-header">
-                  <div>
-                    <p class="panel-title">Markdown editor</p>
-                    <p class="panel-sub">Generate or refine your article, then copy it.</p>
-                  </div>
-                  <div class="metrics">
-                    <span id="wordCount">0 words</span>
-                    <span aria-hidden="true">•</span>
-                    <span id="charCount">0 chars</span>
-                  </div>
-                </div>
-                <textarea
-                  id="output"
-                  class="output-area"
-                  spellcheck="false"
-                  placeholder="Your article will appear here as pure Markdown..."
-                ></textarea>
-                <div class="selection-actions">
-                  <button type="button" id="regenSelectionBtn" class="btn-secondary">Regenerate selection</button>
-                  <button type="button" id="toneSelectionBtn" class="btn-ghost">Change tone</button>
-                </div>
-              </div>
-              <div class="panel preview-panel" id="previewPanel" aria-live="polite">
-                  <div class="preview-actions">
-                    <button type="button" id="copyMarkdownBtn" class="btn-ghost">Copy</button>
-                    <button type="button" id="exportPdfBtn" class="btn-ghost">PDF</button>
-                    <button type="button" id="exportWordBtn" class="btn-ghost">Word</button>
-                  </div>
-                </div>
-                <div id="preview" class="preview-area">
-                  <p class="preview-placeholder">Start typing or generate content to see the preview.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <aside class="insight-sidebar">
-            <div class="insight-card">
-              <div class="panel-header">
-                <div>
-                  <p class="panel-title">SEO Analyzer</p>
-                  <p class="panel-sub">Local checks for headings, density, and length.</p>
-                </div>
-              <div class="seo-gauge-container">
-                <div class="seo-gauge-wrapper" id="seoGaugeWrapper">
-                  <!-- Radial SVG injected via JS -->
-                  <div class="seo-gauge-score">
-                    <span id="seoScoreValue">—</span>
-                    <small>/100</small>
-                  </div>
-                </div>
-              </div>
-              <ul class="insight-list" id="seoChecksList"></ul>
-              <div class="insight-suggestions">
-                <p class="panel-sub">Suggestions</p>
-                <ul class="insight-list" id="seoSuggestionsList"></ul>
-              </div>
-            </div>
-
-            <div class="insight-card">
-              <div class="panel-header">
-                <div>
-                  <p class="panel-title">Readability</p>
-                  <p class="panel-sub">Flesch-style estimate for English and French.</p>
-                </div>
-              </div>
-              <div class="insight-grid">
-                <div>
-                  <p class="insight-label">Readability score</p>
-                  <p class="insight-value" id="readabilityScore">—</p>
-                </div>
-                <div>
-                  <p class="insight-label">Average sentence length</p>
-                  <p class="insight-value" id="averageSentenceLength">—</p>
-                </div>
-              </div>
-              <div>
-                <p class="insight-label">Complex sentences</p>
-                <ul class="insight-list" id="complexSentencesList"></ul>
-              </div>
-            </div>
-
-            <div class="insight-card">
-              <div class="panel-header">
-                <div>
-                  <p class="panel-title">SEO Metadata</p>
-                  <p class="panel-sub">AI-powered titles, descriptions, and keywords.</p>
-                </div>
-              </div>
-              <div class="metadata-fields">
-                <p class="insight-label">SEO Title</p>
-                <p class="metadata-text" id="seoTitleText">Waiting for generation...</p>
-                <p class="insight-label">Meta description</p>
-                <p class="metadata-text" id="metaDescriptionText">Waiting for generation...</p>
-                <p class="insight-label">Secondary keywords</p>
-                <p class="metadata-text" id="secondaryKeywordsText">Waiting for generation...</p>
-              </div>
-            </div>
-          </aside>
-        </div>
-
-      </form>
-    </section>
-
-    <section class="card card-secondary">
-      <h2 class="card-title">How it works</h2>
-      <ol class="steps-list">
-        <li>Open the settings menu and paste your OpenRouter API key.</li>
-        <li>Select your preferred model.</li>
-        <li>Enter a keyword and configure tone, length, and language.</li>
-        <li>Click “Generate article” and wait for the response.</li>
-        <li>Copy the Markdown and drop it into your CMS, Obsidian, or static site.</li>
-      </ol>
-      <p class="small-note">
-        Everything runs in your browser. There is no backend and no database.  
-        You are responsible for your OpenRouter usage and billing.
-      </p>
-    </section>
-  </main>
-
-  <footer class="footer">
-    <p class="footer-text">
-      OpenSEO Studio v2.0.0 – fully static, MIT-licensed, BYOK SEO writing tool.
-    </p>
-  </footer>
-
-  <!-- Load after DOM is parsed to avoid race conditions with overlays/menu wiring -->
-  <script src="src/main.js" type="module" defer></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration failed', err));
-      });
-    }
-  </script>
-  <aside class="modal-overlay" id="welcomeOverlay" aria-hidden="true">
-    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle" aria-describedby="welcomeDescription">
-      <div class="modal-header">
-        <div>
-          <p class="panel-title" id="welcomeTitle">Welcome to OpenSEO Studio v2.0.0</p>
-          <p class="panel-sub">Your 3-step setup</p>
         </div>
       </div>
-      <div class="modal-body">
-        <ol class="modal-list">
-          <li>Paste your OpenRouter API key (BYOK).</li>
-          <li>Pick a default model.</li>
-          <li>Generate and export clean Markdown.</li>
-        </ol>
-        <p class="small-note" id="welcomeDescription">Runs in your browser. No backend. No tracking.</p>
-        <div class="modal-actions">
-          <button type="button" class="btn-primary" id="welcomeGetStarted">Get started</button>
-          <button type="button" class="btn-ghost" id="welcomeLearnMore">Learn more</button>
-        </div>
-      </div>
+
+      <p class="text-xs text-secondary mt-md" style="text-align: center;">
+        OpenSEO Studio is 100% client-side. Your API key never leaves your browser except when calling OpenRouter directly.
+      </p>
     </div>
   </aside>
 
-<aside class="history-overlay" id="historyOverlay" aria-hidden="true">
-  <div class="history-panel">
-    <div class="history-header">
-      <div>
-        <p class="panel-title">Article history</p>
-        <p class="panel-sub">Stored locally (last 20)</p>
-      </div>
-      <button class="icon-btn" id="closeHistoryBtn" aria-label="Close history">✕</button>
-    </div>
-    <input
-      type="search"
-      id="historySearch"
-      class="field-input"
-      placeholder="Search by title or keyword"
-      aria-label="Search history"
-    >
-    <div class="history-list" id="historyList" role="list" aria-live="polite"></div>
-    <p class="small-note">Click an item to reload it in the editor.</p>
-  </div>
-</aside>
-
-<aside class="modal-overlay" id="exportModal" aria-hidden="true">
-  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
-    <div class="modal-header">
-      <div>
-        <p class="panel-title" id="exportModalTitle">Export</p>
-        <p class="panel-sub" id="exportModalSubtitle">Coming soon</p>
-      </div>
-      <button class="icon-btn" id="closeExportModalBtn" aria-label="Close export panel">✕</button>
-    </div>
-    <div class="modal-body" id="exportModalBody"></div>
-  </div>
-</aside>
-
-
-<aside class="modal-overlay" id="aboutModal" aria-hidden="true">
-  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="aboutModalTitle">
-    <div class="modal-header">
-      <div>
-        <p class="panel-title" id="aboutModalTitle">OpenSEO Studio</p>
-        <p class="panel-sub">v2.0.0</p>
-      </div>
-      <button class="icon-btn" id="closeAboutModalBtn" aria-label="Close about panel">✕</button>
-    </div>
-    <div class="modal-body">
-      <p class="small-note">
-        A fully static SEO writer that runs in your browser. Bring your own API key (OpenRouter, OpenAI, Anthropic, Gemini) or use Ollama locally.
-      </p>
-      <div>
-        <p class="panel-sub">What it is</p>
-        <ul class="modal-list">
-          <li>Fully static SEO writer</li>
-          <li>BYOK via OpenRouter / OpenAI / Anthropic / Gemini / Ollama</li>
-          <li>Runs in your browser</li>
-          <li>Produces clean Markdown</li>
-        </ul>
-      </div>
-      <div>
-        <p class="panel-sub">What it is not</p>
-        <ul class="modal-list">
-          <li>No accounts</li>
-          <li>No database</li>
-          <li>No tracking</li>
-          <li>No server-side storage</li>
-        </ul>
-      </div>
-      <div>
-        <p class="panel-sub">Principles</p>
-        <ul class="modal-list">
-          <li>Static</li>
-          <li>BYOK</li>
-          <li>No backend</li>
-          <li>No tracking</li>
-          <li>Markdown only</li>
-        </ul>
-      </div>
-      <div class="modal-links">
-        <a href="https://github.com/Vellis59/openseo-studio" target="_blank" rel="noreferrer noopener">GitHub</a>
-        <a href="https://github.com/Vellis59/openseo-studio/issues" target="_blank" rel="noreferrer noopener">Issues</a>
-      </div>
-    </div>
-  </div>
-</aside>
-
+  <!-- Scripts -->
+  <script src="src/main-v21.js" type="module" defer></script>
 </body>
 </html>

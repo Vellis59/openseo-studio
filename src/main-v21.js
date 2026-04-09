@@ -1003,7 +1003,7 @@ async function handleGeneratePlan() {
   const apiKey = elements.apiKeyInput?.value;
   const model = elements.modelSelect?.value;
 
-  console.log('📋 Plan Generation Debug:', { provider, model, hasApiKey: !!apiKey });
+  console.log(`📋 Plan Generation: provider=${provider}, model=${model}, apiKey=${apiKey ? 'oui' : 'non'}`);
 
   if (!model) {
     showStatus('Please select a model from dropdown first.', 'error');
@@ -1095,7 +1095,7 @@ async function handleGenerateArticle() {
   const apiKey = elements.apiKeyInput?.value;
   const model = elements.modelSelect?.value;
 
-  console.log('🔍 Article Generation Debug:', { provider, model, hasApiKey: !!apiKey });
+  console.log(`🔍 Article Generation: provider=${provider}, model=${model}, apiKey=${apiKey ? 'oui' : 'non'}`);
 
   if (!model) {
     showStatus('Please select a model from the dropdown first.', 'error');

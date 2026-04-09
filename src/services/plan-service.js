@@ -3,7 +3,7 @@
  * Generate article outlines based on keywords
  */
 
-import * as api from './client.js';
+import * as api from '../api/client.js';
 import * as prompts from '../api/prompts.js';
 import * as constants from '../api/constants.js';
 

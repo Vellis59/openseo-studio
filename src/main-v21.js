@@ -40,7 +40,9 @@ const appState = {
     keyword: '',
     language: 'en',
     tone: 'clear and accessible',
-    length: 'standard (~1500 words)'
+    length: 'standard (~1500 words)',
+    useWebResearch: false,
+    webResearch: ''
   }
 };
 
@@ -464,6 +466,17 @@ function renderConfigureTab(container) {
       <small class="form-help">Add specific instructions for the AI writer</small>
     </div>
 
+    <label class="form-checkbox" style="margin-bottom: 1rem; display:flex;">
+      <input type="checkbox" id="webResearchCheckbox">
+      <span>Enable web research for fresher articles (OpenRouter only)</span>
+    </label>
+
+    <div id="webResearchPreviewGroup" class="form-group" style="display:none; margin-bottom: 1.5rem;">
+      <label class="form-label" for="webResearchOutput">Web research</label>
+      <textarea id="webResearchOutput" class="form-textarea" rows="5" readonly placeholder="Latest web research will appear here before article generation..."></textarea>
+      <small class="form-help">Uses OpenRouter model openai/gpt-4o-mini-search-preview. Automatically skipped for non-OpenRouter providers.</small>
+    </div>
+
     <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
       <button id="generatePlanBtn" class="btn btn--secondary">
         📋 Generate Plan
@@ -482,6 +495,21 @@ function renderConfigureTab(container) {
   // Setup event listeners
   const generatePlanBtn = form.querySelector('#generatePlanBtn');
   const generateArticleBtn = form.querySelector('#generateArticleBtn');
+  const webResearchCheckbox = form.querySelector('#webResearchCheckbox');
+  const webResearchPreviewGroup = form.querySelector('#webResearchPreviewGroup');
+
+  if (webResearchCheckbox) {
+    webResearchCheckbox.checked = !!appState.metadata.useWebResearch;
+    webResearchCheckbox.addEventListener('change', () => {
+      appState.metadata.useWebResearch = webResearchCheckbox.checked;
+      if (webResearchPreviewGroup) {
+        webResearchPreviewGroup.style.display = webResearchCheckbox.checked ? 'block' : 'none';
+      }
+    });
+    if (webResearchPreviewGroup) {
+      webResearchPreviewGroup.style.display = webResearchCheckbox.checked ? 'block' : 'none';
+    }
+  }
 
   if (generatePlanBtn) {
     generatePlanBtn.addEventListener('click', handleGeneratePlan);
@@ -1084,7 +1112,17 @@ async function handleGeneratePlan() {
     const lengthSelect = document.getElementById('lengthSelect');
 
     const langConfig = constants.LANGUAGES[languageSelect?.value] || constants.LANGUAGES[constants.DEFAULT_LANGUAGE];
-    
+    const useWebResearch = !!document.getElementById('webResearchCheckbox')?.checked;
+
+    if (provider === 'openrouter' && useWebResearch) {
+      showStatus('Running web research before plan generation...', 'loading');
+      await fetchWebResearch({ keyword, apiKey });
+    } else {
+      appState.metadata.webResearch = '';
+      const researchOutput = document.getElementById('webResearchOutput');
+      if (researchOutput) researchOutput.value = '';
+    }
+
     const ollamaBaseUrl = elements.ollamaBaseUrlInput?.value || '';
     const plan = await appState.planService.generatePlan(
       keyword,
@@ -1180,6 +1218,14 @@ async function handleGenerateArticle() {
 
     const langConfig = constants.LANGUAGES[languageSelect?.value] || constants.LANGUAGES[constants.DEFAULT_LANGUAGE];
     const ollamaBaseUrl = elements.ollamaBaseUrlInput?.value || '';
+    const useWebResearch = !!document.getElementById('webResearchCheckbox')?.checked;
+
+    if (provider === 'openrouter' && useWebResearch && !appState.metadata.webResearch) {
+      showStatus('Running web research before article generation...', 'loading');
+      await fetchWebResearch({ keyword, apiKey });
+    } else if (provider !== 'openrouter') {
+      appState.metadata.webResearch = '';
+    }
 
     if (!appState.currentPlan?.trim()) {
       const generatedPlan = await appState.planService.generatePlan(
@@ -1222,6 +1268,7 @@ async function handleGenerateArticle() {
       tone: toneSelect?.value,
       length: lengthSelect?.value,
       extra: extraInput?.value,
+      research: appState.metadata.webResearch,
       planText: appState.currentPlan
     });
 
@@ -1270,6 +1317,31 @@ async function handleGenerateArticle() {
     updateActionStates();
     setTimeout(hideStatus, 3000);
   }
+}
+
+async function fetchWebResearch({ keyword, apiKey }) {
+  const researchOutput = document.getElementById('webResearchOutput');
+  const researchPrompt = [
+    `Find the most recent and useful information about: ${keyword}.`,
+    'Return a concise research brief in Markdown.',
+    'Include recent facts, trends, notable updates, and practical points relevant for writing an up-to-date article.',
+    'If possible, structure as: Recent updates, Key facts, Important trends, Cautions.'
+  ].join(' ');
+
+  const research = await api.callChatProvider({
+    provider: 'openrouter',
+    model: 'openai/gpt-4o-mini-search-preview',
+    apiKey,
+    body: {
+      model: 'openai/gpt-4o-mini-search-preview',
+      messages: [{ role: 'user', content: researchPrompt }],
+      temperature: 0.2
+    }
+  });
+
+  appState.metadata.webResearch = research;
+  if (researchOutput) researchOutput.value = research;
+  return research;
 }
 
 function updateSEOMetrics(content, keyword) {

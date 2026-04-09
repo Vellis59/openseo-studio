@@ -9,6 +9,9 @@
  * - Improved workflow integration
  */
 
+import { inject } from '@vercel/analytics';
+inject();
+
 import { Button } from './components/Button.js';
 import { Input, Textarea, Select } from './components/Input.js';
 import { Tabs, PRESETS_TABS } from './components/Tabs.js';

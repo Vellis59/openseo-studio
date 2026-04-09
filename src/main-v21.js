@@ -10,7 +10,11 @@
  */
 
 import { inject } from '@vercel/analytics';
-inject();
+
+// Initialize Vercel Web Analytics
+inject({
+  mode: import.meta.env.MODE === 'development' ? 'development' : 'production',
+});
 
 import { Button } from './components/Button.js';
 import { Input, Textarea, Select } from './components/Input.js';

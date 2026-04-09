@@ -1,8 +1,8 @@
 {
   "name": "openseo-studio",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "description": "OpenSEO Studio is a **fully client-side, static SEO writing tool** powered by AI models through [OpenRouter](https://openrouter.ai/).",
-  "main": "src/main.js",
+  "main": "src/main-v21.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

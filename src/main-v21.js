@@ -1003,8 +1003,15 @@ async function handleGeneratePlan() {
   const apiKey = elements.apiKeyInput?.value;
   const model = elements.modelSelect?.value;
 
-  if (!model || (!apiKey && provider !== 'ollama')) {
-    showStatus('Please configure your API key and model first.', 'error');
+  console.log('📋 Plan Generation Debug:', { provider, model, hasApiKey: !!apiKey });
+
+  if (!model) {
+    showStatus('Please select a model from dropdown first.', 'error');
+    return;
+  }
+
+  if (!apiKey && provider !== 'ollama') {
+    showStatus('Please configure your API key first.', 'error');
     return;
   }
 
@@ -1088,8 +1095,15 @@ async function handleGenerateArticle() {
   const apiKey = elements.apiKeyInput?.value;
   const model = elements.modelSelect?.value;
 
-  if (!model || (!apiKey && provider !== 'ollama')) {
-    showStatus('Please configure your API key and model first.', 'error');
+  console.log('🔍 Article Generation Debug:', { provider, model, hasApiKey: !!apiKey });
+
+  if (!model) {
+    showStatus('Please select a model from the dropdown first.', 'error');
+    return;
+  }
+
+  if (!apiKey && provider !== 'ollama') {
+    showStatus('Please configure your API key first.', 'error');
     return;
   }
 

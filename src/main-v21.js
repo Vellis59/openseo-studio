@@ -1117,6 +1117,40 @@ async function handleGenerateArticle() {
     const extraInput = document.getElementById('extraInput');
 
     const langConfig = constants.LANGUAGES[languageSelect?.value] || constants.LANGUAGES[constants.DEFAULT_LANGUAGE];
+    const ollamaBaseUrl = elements.ollamaBaseUrlInput?.value || '';
+
+    if (!appState.currentPlan?.trim()) {
+      const generatedPlan = await appState.planService.generatePlan(
+        keyword,
+        langConfig,
+        toneSelect?.value,
+        lengthSelect?.value,
+        provider,
+        model,
+        apiKey,
+        provider === 'ollama' ? ollamaBaseUrl : undefined
+      );
+
+      const planEditor = document.getElementById('planEditor');
+      if (planEditor) {
+        planEditor.value = generatedPlan;
+      }
+      appState.currentPlan = generatedPlan;
+      appState.metadata.keyword = keyword;
+      appState.metadata.language = languageSelect?.value;
+      appState.metadata.tone = toneSelect?.value;
+      appState.metadata.length = lengthSelect?.value;
+
+      showStatus('Plan generated. Review it before generating the full article.', 'success');
+      finishProgress(true);
+
+      const tabs = document.querySelector('.tabs');
+      if (tabs) {
+        const planTab = tabs.querySelector('[data-tab-id="plan"]');
+        if (planTab) planTab.click();
+      }
+      return;
+    }
 
     const sysPrompt = prompts.buildSystemPrompt();
     const userPrompt = prompts.buildPromptBlocks({
@@ -1124,7 +1158,8 @@ async function handleGenerateArticle() {
       languageConfig: langConfig,
       tone: toneSelect?.value,
       length: lengthSelect?.value,
-      extra: extraInput?.value
+      extra: extraInput?.value,
+      planText: appState.currentPlan
     });
 
     const body = {
@@ -1136,7 +1171,6 @@ async function handleGenerateArticle() {
       temperature: 0.7
     };
 
-    const ollamaBaseUrl = elements.ollamaBaseUrlInput?.value || '';
     const content = await api.callChatProvider({
       provider,
       model,

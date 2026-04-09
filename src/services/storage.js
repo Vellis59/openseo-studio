@@ -110,6 +110,19 @@ export function persistHistory(history) {
   setItemGuarded(STORAGE_KEY_HISTORY, JSON.stringify(history));
 }
 
+export function addHistoryEntry(entry) {
+  if (isAnonymous) return [];
+  const history = loadHistoryFromStorage();
+  const item = {
+    id: Date.now(),
+    createdAt: new Date().toISOString(),
+    ...(entry || {}),
+  };
+  const next = [item, ...history].slice(0, MAX_HISTORY_ITEMS);
+  persistHistory(next);
+  return next;
+}
+
 export function loadMonthlySpend() {
   if (isAnonymous) return 0;
   const raw = window.localStorage.getItem(STORAGE_KEY_SPEND);

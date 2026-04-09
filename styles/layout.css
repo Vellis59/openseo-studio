@@ -29,6 +29,21 @@
   gap: var(--space-md);
 }
 
+.header__home {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.header__home:hover .header__title {
+  color: var(--primary);
+}
+
 .header__logo {
   display: flex;
   align-items: center;

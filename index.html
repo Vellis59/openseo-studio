@@ -18,11 +18,13 @@
   <!-- Header -->
   <header class="header">
     <div class="header__left">
-      <div class="header__logo">OS</div>
-      <div class="header__brand">
-        <span class="header__title">OpenSEO Studio</span>
-        <span class="header__tagline">Static, BYOK, SEO-focused</span>
-      </div>
+      <button class="header__home" id="homeButton" type="button" aria-label="Return to home">
+        <div class="header__logo">OS</div>
+        <div class="header__brand">
+          <span class="header__title">OpenSEO Studio</span>
+          <span class="header__tagline">Static, BYOK, SEO-focused</span>
+        </div>
+      </button>
     </div>
 
     <div class="header__actions">
@@ -60,7 +62,11 @@
 
     <!-- Status & Progress -->
     <div style="margin-top: 1rem;">
-      <div id="status" class="status" style="display: none;"></div>
+      <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin-bottom:0.5rem;">
+        <div id="status" class="status" style="display: none;"></div>
+        <span id="planReadyBadge" class="badge" style="display:none;">📋 Plan prêt</span>
+        <span id="articleReadyBadge" class="badge badge--success" style="display:none;">✅ Article prêt</span>
+      </div>
       <div id="progressContainer" style="display: none; margin-top: 0.5rem;">
         <div class="progress">
           <div class="progress__bar" id="progressBar" style="width: 0%;"></div>

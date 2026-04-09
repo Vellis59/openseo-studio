@@ -105,6 +105,7 @@ function cacheElements() {
   elements.settingsToggle = document.getElementById('settingsToggle');
   elements.settingsPanel = document.getElementById('settingsPanel');
   elements.closeSettingsBtn = document.getElementById('closeSettingsBtn');
+  elements.homeButton = document.getElementById('homeButton');
   elements.providerSelect = document.getElementById('providerSelect');
   elements.apiKeyInput = document.getElementById('apiKeyInput');
   elements.modelSelect = document.getElementById('modelSelect');
@@ -119,6 +120,8 @@ function cacheElements() {
   elements.progressContainer = document.getElementById('progressContainer');
   elements.progressBar = document.getElementById('progressBar');
   elements.progressLabel = document.getElementById('progressLabel');
+  elements.planReadyBadge = document.getElementById('planReadyBadge');
+  elements.articleReadyBadge = document.getElementById('articleReadyBadge');
 }
 
 function initializeTheme() {
@@ -182,6 +185,14 @@ function setupEventListeners() {
   // Settings panel
   if (elements.settingsToggle) {
     elements.settingsToggle.addEventListener('click', openSettingsPanel);
+  }
+
+  if (elements.homeButton) {
+    elements.homeButton.addEventListener('click', () => {
+      const configureTab = document.querySelector('[data-tab-id="configure"]');
+      if (configureTab) configureTab.click();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   }
 
   if (elements.closeSettingsBtn) {
@@ -458,7 +469,7 @@ function renderConfigureTab(container) {
         📋 Generate Plan
       </button>
       <button id="generateArticleBtn" class="btn btn--primary">
-        ✍️ Generate Article
+        ✍️ Generate Article from Plan
       </button>
     </div>
   `;
@@ -492,8 +503,8 @@ function renderPlanTab(container) {
       <textarea id="planEditor" class="form-textarea" style="min-height: 400px;" placeholder="Plan will appear here..."></textarea>
 
       <div style="display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end;">
-        <button id="regeneratePlanBtn" class="btn btn--secondary">🔄 Regenerate</button>
-        <button id="usePlanBtn" class="btn btn--primary">✅ Use This Plan</button>
+        <button id="regeneratePlanBtn" class="btn btn--secondary">🔄 Regenerate Plan</button>
+        <button id="usePlanBtn" class="btn btn--primary">✅ Generate Article</button>
       </div>
     </div>
   `;
@@ -597,6 +608,7 @@ function renderGenerateTab(container) {
       updateMetrics();
       renderPreview();
       updateSEOMetrics(markdownEditor.value, appState.metadata.keyword);
+      updateActionStates();
       
       // Auto-save will handle content saving
     });
@@ -772,6 +784,7 @@ function loadAutoSavedContent(editor) {
       updateMetrics();
       renderPreview();
       updateSEOMetrics(saved.content, appState.metadata.keyword);
+      updateActionStates();
       
       showStatus('Content restored from auto-save', 'success');
     }
@@ -911,6 +924,7 @@ function createVersionHistoryModal(versions) {
           updateMetrics();
           renderPreview();
           updateSEOMetrics(version.content, appState.metadata.keyword);
+          updateActionStates();
         }
         
         overlay.classList.remove('modal-overlay--open');
@@ -956,6 +970,30 @@ function renderPreview() {
   }
 }
 
+function updateActionStates() {
+  const generateArticleBtn = document.getElementById('generateArticleBtn');
+  const usePlanBtn = document.getElementById('usePlanBtn');
+  const hasPlan = !!appState.currentPlan?.trim();
+  const hasArticle = !!appState.articleMarkdown?.trim();
+
+  if (generateArticleBtn) {
+    generateArticleBtn.disabled = appState.isGenerating;
+    generateArticleBtn.textContent = hasPlan ? '✍️ Generate Article from Plan' : '✍️ Generate Plan First';
+  }
+
+  if (usePlanBtn) {
+    usePlanBtn.disabled = appState.isGenerating || !hasPlan;
+  }
+
+  if (elements.planReadyBadge) {
+    elements.planReadyBadge.style.display = hasPlan ? 'inline-flex' : 'none';
+  }
+
+  if (elements.articleReadyBadge) {
+    elements.articleReadyBadge.style.display = hasArticle ? 'inline-flex' : 'none';
+  }
+}
+
 function showStatus(text, type) {
   if (!elements.status) return;
 
@@ -970,35 +1008,44 @@ function hideStatus() {
   }
 }
 
-function startProgress() {
+function startProgress(mode = 'Generating') {
   if (!elements.progressContainer || !elements.progressBar || !elements.progressLabel) {
     return () => {};
   }
 
   elements.progressContainer.style.display = 'block';
   elements.progressBar.style.width = '0%';
-  elements.progressLabel.textContent = 'Starting...';
+  elements.progressLabel.textContent = `${mode}...`;
 
-  let progress = 0;
+  const startTime = Date.now();
   const interval = setInterval(() => {
-    progress = Math.min(95, progress + 2);
-    elements.progressBar.style.width = `${progress}%`;
-    elements.progressLabel.textContent = `Generating... ${progress}%`;
-  }, 100);
+    const elapsed = (Date.now() - startTime) / 1000;
+    let progress;
 
-  return (success) => {
+    if (elapsed < 3) progress = 8 + elapsed * 8;
+    else if (elapsed < 10) progress = 32 + (elapsed - 3) * 4;
+    else if (elapsed < 25) progress = 60 + (elapsed - 10) * 1.6;
+    else if (elapsed < 60) progress = 84 + (elapsed - 25) * 0.3;
+    else progress = 94;
+
+    progress = Math.min(94, progress);
+    elements.progressBar.style.width = `${progress.toFixed(0)}%`;
+    elements.progressLabel.textContent = `${mode}... ${progress.toFixed(0)}%`;
+  }, 400);
+
+  return (success, finalLabel) => {
     clearInterval(interval);
     if (elements.progressBar) {
       elements.progressBar.style.width = success ? '100%' : '0%';
     }
     if (elements.progressLabel) {
-      elements.progressLabel.textContent = success ? 'Complete!' : 'Failed';
+      elements.progressLabel.textContent = finalLabel || (success ? 'Complete!' : 'Failed');
     }
     setTimeout(() => {
       if (elements.progressContainer) {
         elements.progressContainer.style.display = 'none';
       }
-    }, 2000);
+    }, 1800);
   };
 }
 
@@ -1075,7 +1122,8 @@ async function handleGeneratePlan() {
     }
 
     showStatus('Plan generated successfully!', 'success');
-    finishProgress(true);
+    updateActionStates();
+    finishProgress(true, 'Plan ready');
 
     // Switch to plan tab
     const tabs = document.querySelector('.tabs');
@@ -1155,7 +1203,8 @@ async function handleGenerateArticle() {
       appState.metadata.length = lengthSelect?.value;
 
       showStatus('Plan generated. Review it before generating the full article.', 'success');
-      finishProgress(true);
+      updateActionStates();
+      finishProgress(true, 'Plan ready');
 
       const tabs = document.querySelector('.tabs');
       if (tabs) {
@@ -1206,7 +1255,8 @@ async function handleGenerateArticle() {
     }
 
     showStatus('Article generated successfully!', 'success');
-    finishProgress(true);
+    updateActionStates();
+    finishProgress(true, 'Article ready');
 
     // Update SEO metrics
     updateSEOMetrics(content, keyword);

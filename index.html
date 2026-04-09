@@ -107,6 +107,13 @@
           </select>
         </div>
 
+        <!-- Ollama Base URL (only shown when Ollama is selected) -->
+        <div class="form-group" id="ollamaBaseUrlGroup" style="display: none;">
+          <label class="form-label" for="ollamaBaseUrl">Ollama Base URL</label>
+          <input type="url" id="ollamaBaseUrl" class="form-input" placeholder="http://localhost:11434">
+          <small class="form-help">Default: http://localhost:11434 (for local Ollama)</small>
+        </div>
+
         <button id="reloadModelsBtn" class="btn btn--secondary btn--sm" style="margin-top: 0.5rem;">
           🔄 Reload Models
         </button>
@@ -146,5 +153,18 @@
 
   <!-- Scripts -->
   <script src="src/main-v21.js" type="module" defer></script>
+
+  <!-- Service Worker Registration with Uninstall/Update -->
+  <script>
+    // First, unregister any existing service workers to force refresh
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+          console.log('Unregistered old service worker:', registration);
+        }
+      });
+    }
+  </script>
 </body>
 </html>

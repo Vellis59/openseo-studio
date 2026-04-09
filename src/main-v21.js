@@ -109,6 +109,8 @@ function cacheElements() {
   elements.apiKeyInput = document.getElementById('apiKeyInput');
   elements.modelSelect = document.getElementById('modelSelect');
   elements.reloadModelsBtn = document.getElementById('reloadModelsBtn');
+  elements.ollamaBaseUrlInput = document.getElementById('ollamaBaseUrl');
+  elements.ollamaBaseUrlGroup = document.getElementById('ollamaBaseUrlGroup');
   elements.rememberKeyCheckbox = document.getElementById('rememberKey');
   elements.anonymousModeCheckbox = document.getElementById('anonymousMode');
   elements.exportConfigBtn = document.getElementById('exportConfigBtn');
@@ -164,6 +166,10 @@ function hydrateStateFromStorage() {
     elements.anonymousModeCheckbox.checked = config.anonymousMode || false;
   }
 
+  if (elements.ollamaBaseUrlInput) {
+    elements.ollamaBaseUrlInput.value = config.ollamaBaseUrl || 'http://localhost:11434';
+  }
+
   refreshModels();
 }
 
@@ -184,7 +190,11 @@ function setupEventListeners() {
 
   // Provider change
   if (elements.providerSelect) {
-    elements.providerSelect.addEventListener('change', handleProviderChange);
+    elements.providerSelect.addEventListener('change', () => {
+      handleProviderChange();
+      // Also refresh models when provider changes
+      refreshModels();
+    });
   }
 
   // API key change
@@ -255,17 +265,25 @@ function saveApiKey() {
   const apiKey = elements.apiKeyInput.value;
   const rememberKey = elements.rememberKeyCheckbox.checked;
   const anonymousMode = elements.anonymousModeCheckbox.checked;
+  const ollamaBaseUrl = elements.ollamaBaseUrlInput?.value || '';
 
   storage.setProviderConfig(provider, {
     apiKey,
     rememberKey,
-    anonymousMode
+    anonymousMode,
+    ollamaBaseUrl
   });
 }
 
 async function refreshModels() {
   const provider = elements.providerSelect.value;
   const apiKey = elements.apiKeyInput.value;
+  const ollamaBaseUrl = elements.ollamaBaseUrlInput?.value || '';
+
+  // Show/hide Ollama base URL field
+  if (elements.ollamaBaseUrlGroup) {
+    elements.ollamaBaseUrlGroup.style.display = provider === 'ollama' ? 'block' : 'none';
+  }
 
   if (!apiKey && provider !== 'ollama') {
     if (elements.modelSelect) {
@@ -276,7 +294,12 @@ async function refreshModels() {
   }
 
   try {
-    const modelsList = await api.fetchModels(provider, apiKey);
+    // Pass Ollama base URL if provider is Ollama
+    const modelsList = await api.fetchModels(
+      provider,
+      apiKey,
+      provider === 'ollama' ? ollamaBaseUrl : undefined
+    );
 
     if (elements.modelSelect) {
       elements.modelSelect.innerHTML = '';

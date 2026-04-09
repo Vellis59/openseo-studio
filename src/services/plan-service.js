@@ -12,7 +12,7 @@ export class PlanService {
     this.currentPlan = '';
   }
 
-  async generatePlan(keyword, languageConfig, tone, length, provider, model, apiKey) {
+  async generatePlan(keyword, languageConfig, tone, length, provider, model, apiKey, baseUrl) {
     if (!keyword?.trim()) {
       throw new Error('Keyword is required for plan generation');
     }
@@ -35,7 +35,13 @@ export class PlanService {
     };
 
     try {
-      const plan = await api.callChatProvider({ provider, model, apiKey, body });
+      const plan = await api.callChatProvider({
+        provider,
+        model,
+        apiKey,
+        baseUrl: provider === 'ollama' ? baseUrl : undefined,
+        body
+      });
       this.currentPlan = this.formatPlan(plan);
       return this.currentPlan;
     } catch (err) {

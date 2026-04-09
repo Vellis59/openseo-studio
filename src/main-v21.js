@@ -1018,6 +1018,7 @@ async function handleGeneratePlan() {
 
     const langConfig = constants.LANGUAGES[languageSelect?.value] || constants.LANGUAGES[constants.DEFAULT_LANGUAGE];
     
+    const ollamaBaseUrl = elements.ollamaBaseUrlInput?.value || '';
     const plan = await appState.planService.generatePlan(
       keyword,
       langConfig,
@@ -1025,7 +1026,8 @@ async function handleGeneratePlan() {
       lengthSelect?.value,
       provider,
       model,
-      apiKey
+      apiKey,
+      provider === 'ollama' ? ollamaBaseUrl : undefined
     );
 
     // Update plan editor
@@ -1120,7 +1122,14 @@ async function handleGenerateArticle() {
       temperature: 0.7
     };
 
-    const content = await api.callChatProvider({ provider, model, apiKey, body });
+    const ollamaBaseUrl = elements.ollamaBaseUrlInput?.value || '';
+    const content = await api.callChatProvider({
+      provider,
+      model,
+      apiKey,
+      baseUrl: provider === 'ollama' ? ollamaBaseUrl : undefined,
+      body
+    });
 
     // Update editor
     const editor = document.getElementById('markdownEditor');

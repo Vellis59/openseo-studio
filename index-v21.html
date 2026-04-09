@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenSEO Studio v2.1 – AI-powered SEO article generator</title>
+  <meta name="description" content="OpenSEO Studio is a fully client-side SEO article generator powered by OpenRouter. Bring your own API key, keep full control, and generate clean Markdown content.">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/layout.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header__left">
+      <div class="header__logo">OS</div>
+      <div class="header__brand">
+        <span class="header__title">OpenSEO Studio</span>
+        <span class="header__tagline">Static, BYOK, SEO-focused</span>
+      </div>
+    </div>
+
+    <div class="header__actions">
+      <button class="icon-btn" id="themeToggle" aria-label="Toggle theme">
+        🌗
+      </button>
+      <button class="icon-btn" id="settingsToggle" aria-label="Settings">
+        ⚙️
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="page">
+    <!-- Hero Section -->
+    <section class="card" style="margin-bottom: 2rem;">
+      <div style="text-align: center; padding: 1rem;">
+        <h1 style="margin-bottom: 0.5rem;">SEO article generator for people who hate bloated tools</h1>
+        <p class="text-secondary" style="max-width: 600px; margin: 0 auto 1rem;">
+          OpenSEO Studio is a fully static, BYOK SEO writing tool.
+          No backend, no account, no tracking. Just your API key and clean Markdown output.
+        </p>
+        <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+          <span class="badge">100% front-end</span>
+          <span class="badge">BYOK via OpenRouter</span>
+          <span class="badge">Markdown only</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab Container -->
+    <div id="tabContainer"></div>
+
+    <!-- Status & Progress -->
+    <div style="margin-top: 1rem;">
+      <div id="status" class="status" style="display: none;"></div>
+      <div id="progressContainer" style="display: none; margin-top: 0.5rem;">
+        <div class="progress">
+          <div class="progress__bar" id="progressBar" style="width: 0%;"></div>
+        </div>
+        <p class="text-xs text-secondary mt-sm" id="progressLabel">Ready</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Settings Panel -->
+  <aside class="settings-panel" id="settingsPanel" aria-hidden="true">
+    <div class="settings-panel__header">
+      <h2 class="settings-panel__title">Settings</h2>
+      <button class="icon-btn" id="closeSettingsBtn" aria-label="Close settings">✕</button>
+    </div>
+    <div class="settings-panel__content">
+      <!-- API Configuration -->
+      <div class="card" style="margin-bottom: 1rem;">
+        <div class="card__header">
+          <h3 class="card__title">API Configuration</h3>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="providerSelect">Provider</label>
+          <select id="providerSelect" class="form-select">
+            <option value="openrouter" selected>OpenRouter</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="gemini">Gemini (AI Studio)</option>
+            <option value="ollama">Ollama (local)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="apiKeyInput">API Key</label>
+          <input type="password" id="apiKeyInput" class="form-input" placeholder="sk-..." autocomplete="off">
+          <small class="form-help">Stored only in your browser if you choose to remember it.</small>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="modelSelect">Model</label>
+          <select id="modelSelect" class="form-select" disabled>
+            <option value="">Enter API key to load models</option>
+          </select>
+        </div>
+
+        <button id="reloadModelsBtn" class="btn btn--secondary btn--sm" style="margin-top: 0.5rem;">
+          🔄 Reload Models
+        </button>
+      </div>
+
+      <!-- Preferences -->
+      <div class="card">
+        <div class="card__header">
+          <h3 class="card__title">Preferences</h3>
+        </div>
+
+        <label class="form-checkbox">
+          <input type="checkbox" id="rememberKey">
+          <span>Remember API key in this browser</span>
+        </label>
+
+        <label class="form-checkbox">
+          <input type="checkbox" id="anonymousMode">
+          <span>Anonymous mode (no localStorage)</span>
+        </label>
+
+        <div style="margin-top: 1rem;">
+          <button id="exportConfigBtn" class="btn btn--secondary" style="margin-right: 0.5rem;">
+            📥 Export Config
+          </button>
+          <button id="resetStorageBtn" class="btn btn--ghost">
+            🗑️ Reset Storage
+          </button>
+        </div>
+      </div>
+
+      <p class="text-xs text-secondary mt-md" style="text-align: center;">
+        OpenSEO Studio is 100% client-side. Your API key never leaves your browser except when calling OpenRouter directly.
+      </p>
+    </div>
+  </aside>
+
+  <!-- Scripts -->
+  <script src="src/main-v21.js" type="module" defer></script>
+</body>
+</html>

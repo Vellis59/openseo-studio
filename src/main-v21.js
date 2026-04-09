@@ -507,8 +507,17 @@ function renderPlanTab(container) {
   }
 
   if (usePlanBtn) {
-    usePlanBtn.addEventListener('click', () => {
-      // Switch to generate tab
+    usePlanBtn.addEventListener('click', async () => {
+      const planEditor = document.getElementById('planEditor');
+      if (planEditor) {
+        appState.currentPlan = planEditor.value.trim();
+      }
+
+      if (!appState.currentPlan) {
+        showStatus('Please generate or write a plan first.', 'error');
+        return;
+      }
+
       const tabs = document.querySelector('.tabs');
       if (tabs) {
         const generateTab = tabs.querySelector('[data-tab-id="generate"]');
@@ -516,6 +525,10 @@ function renderPlanTab(container) {
           generateTab.click();
         }
       }
+
+      setTimeout(() => {
+        handleGenerateArticle();
+      }, 0);
     });
   }
 }

@@ -474,7 +474,7 @@ function renderConfigureTab(container) {
     <div id="webResearchPreviewGroup" class="form-group" style="display:none; margin-bottom: 1.5rem;">
       <label class="form-label" for="webResearchOutput">Web research</label>
       <textarea id="webResearchOutput" class="form-textarea" rows="5" readonly placeholder="Latest web research will appear here before article generation..."></textarea>
-      <small class="form-help">Uses OpenRouter model openai/gpt-4o-mini-search-preview. Automatically skipped for non-OpenRouter providers.</small>
+      <small class="form-help">Uses OpenRouter model perplexity/sonar. Automatically skipped for non-OpenRouter providers.</small>
     </div>
 
     <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
@@ -1330,10 +1330,10 @@ async function fetchWebResearch({ keyword, apiKey }) {
 
   const research = await api.callChatProvider({
     provider: 'openrouter',
-    model: 'openai/gpt-4o-mini-search-preview',
+    model: 'perplexity/sonar',
     apiKey,
     body: {
-      model: 'openai/gpt-4o-mini-search-preview',
+      model: 'perplexity/sonar',
       messages: [{ role: 'user', content: researchPrompt }],
       temperature: 0.2
     }

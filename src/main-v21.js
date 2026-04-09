@@ -1,6 +1,12 @@
 /**
- * OpenSEO Studio v2.1 - Main Application
- * Minimalist UX with tab-based navigation
+ * OpenSEO Studio v2.2 - Main Application
+ * Minimalist UX with auto-save, version history, and plan generation
+ * 
+ * New in v2.2:
+ * - Auto-save every 30 seconds
+ * - Version history with restore capability
+ * - Plan generation fully implemented
+ * - Improved workflow integration
  */
 
 import { Button } from './components/Button.js';
@@ -14,6 +20,9 @@ import * as textUtils from './utils/text.js';
 import * as prompts from './api/prompts.js';
 import { createGaugeSVG, updateGauge } from './utils/ui_gauge.js';
 import { exportToPdf, exportToWord, copyToClipboard } from './utils/export.js';
+import { initAutoSave, getAutoSave } from './services/auto-save.js';
+import { initVersionHistory, getVersionHistory } from './services/version-history.js';
+import { initPlanService, getPlanService } from './services/plan-service.js';
 
 // Application State
 const appState = {
@@ -22,13 +31,63 @@ const appState = {
   lastKeyword: '',
   isGenerating: false,
   gauge: null,
-  activeTab: 'configure'
+  activeTab: 'configure',
+  autoSave: null,
+  versionHistory: null,
+  planService: null,
+  currentPlan: '',
+  metadata: {
+    keyword: '',
+    language: 'en',
+    tone: 'clear and accessible',
+    length: 'standard (~1500 words)'
+  }
 };
 
 // DOM Elements
 const elements = {};
 
-// Initialize Application
+function initializeServices() {
+  // Initialize auto-save
+  appState.autoSave = initAutoSave(() => {
+    return document.getElementById('markdownEditor')?.value || '';
+  });
+  
+  // Initialize version history
+  appState.versionHistory = initVersionHistory();
+  
+  // Initialize plan service
+  appState.planService = initPlanService();
+  
+  // Start auto-save
+  if (appState.autoSave) {
+    appState.autoSave.start();
+  }
+  
+  // Check for auto-saved content
+  checkForAutoSavedContent();
+}
+
+function checkForAutoSavedContent() {
+  if (appState.autoSave && appState.autoSave.hasSavedContent()) {
+    const lastSaved = appState.autoSave.load();
+    if (lastSaved) {
+      const timeAgo = getTimeAgo(new Date(lastSaved.timestamp));
+      console.log('Auto-saved content found from', timeAgo);
+      // TODO: Show restore button or modal
+    }
+  }
+}
+
+function getTimeAgo(date) {
+  const seconds = Math.floor((new Date() - date) / 1000);
+  
+  if (seconds < 60) return `${seconds} seconds ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+  return `${Math.floor(seconds / 86400)} days ago`;
+}
+
 function init() {
   cacheElements();
   initializeTheme();
@@ -36,8 +95,9 @@ function init() {
   setupEventListeners();
   initializeTabs();
   initializeSEOComponents();
+  initializeServices();
 
-  console.log('OpenSEO Studio v2.1 initialized');
+  console.log('OpenSEO Studio v2.2 initialized');
 }
 
 function cacheElements() {
@@ -460,6 +520,8 @@ function renderGenerateTab(container) {
     <textarea id="markdownEditor" class="editor__textarea" placeholder="Your article will appear here as pure Markdown..."></textarea>
 
     <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+      <button id="saveVersionBtn" class="btn btn--secondary btn--sm">💾 Save Version</button>
+      <button id="showVersionsBtn" class="btn btn--secondary btn--sm">📜 Versions</button>
       <button id="regenSelectionBtn" class="btn btn--secondary btn--sm">🔄 Regenerate Selection</button>
       <button id="changeToneBtn" class="btn btn--ghost btn--sm">🎨 Change Tone</button>
     </div>
@@ -498,7 +560,13 @@ function renderGenerateTab(container) {
     markdownEditor.addEventListener('input', () => {
       updateMetrics();
       renderPreview();
+      updateSEOMetrics(markdownEditor.value, appState.metadata.keyword);
+      
+      // Auto-save will handle content saving
     });
+    
+    // Load auto-saved content if available
+    loadAutoSavedContent(markdownEditor);
   }
 
   if (copyMarkdownBtn) {
@@ -514,6 +582,18 @@ function renderGenerateTab(container) {
         }, 2000);
       }
     });
+  }
+
+  // Version management
+  const saveVersionBtn = layout.querySelector('#saveVersionBtn');
+  const showVersionsBtn = layout.querySelector('#showVersionsBtn');
+  
+  if (saveVersionBtn) {
+    saveVersionBtn.addEventListener('click', saveCurrentVersion);
+  }
+  
+  if (showVersionsBtn) {
+    showVersionsBtn.addEventListener('click', showVersionHistory);
   }
 }
 
@@ -633,6 +713,193 @@ function updateMetrics() {
   }
 }
 
+function loadAutoSavedContent(editor) {
+  if (!appState.autoSave || !appState.autoSave.hasSavedContent()) {
+    return;
+  }
+  
+  const saved = appState.autoSave.load();
+  if (saved && saved.content) {
+    const lastSaved = getTimeAgo(new Date(saved.timestamp));
+    
+    if (confirm(`Auto-saved content found from ${lastSaved}.\n\nDo you want to restore it?`)) {
+      editor.value = saved.content;
+      appState.articleMarkdown = saved.content;
+      
+      if (saved.keyword) {
+        appState.metadata.keyword = saved.keyword;
+      }
+      if (saved.language) {
+        appState.metadata.language = saved.language;
+      }
+      
+      updateMetrics();
+      renderPreview();
+      updateSEOMetrics(saved.content, appState.metadata.keyword);
+      
+      showStatus('Content restored from auto-save', 'success');
+    }
+  }
+}
+
+function saveCurrentVersion() {
+  const editor = document.getElementById('markdownEditor');
+  if (!editor || !editor.value.trim()) {
+    showStatus('No content to save', 'warning');
+    return;
+  }
+  
+  const versionId = appState.versionHistory?.saveVersion(editor.value, {
+    type: 'article',
+    keyword: appState.metadata.keyword,
+    language: appState.metadata.language,
+    tone: appState.metadata.tone,
+    length: appState.metadata.length
+  });
+  
+  if (versionId) {
+    showStatus('Version saved successfully!', 'success');
+  } else {
+    showStatus('Failed to save version', 'error');
+  }
+}
+
+function showVersionHistory() {
+  const versions = appState.versionHistory?.getVersions() || [];
+  
+  if (versions.length === 0) {
+    showStatus('No versions saved yet', 'warning');
+    return;
+  }
+  
+  // Create modal to show versions
+  const modal = createVersionHistoryModal(versions);
+  document.body.appendChild(modal);
+  modal.classList.add('modal-overlay--open');
+}
+
+function createVersionHistoryModal(versions) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  
+  let versionsHTML = versions.map(v => `
+    <div class="version-item" style="
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+    ">
+      <div>
+        <div style="font-weight: 600; font-size: 0.875rem;">
+          ${v.keyword || 'Untitled'}
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-secondary);">
+          ${new Date(v.timestamp).toLocaleString()}
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-tertiary);">
+          ${v.type === 'plan' ? '📋 Plan' : '📝 Article'}
+        </div>
+      </div>
+      <div style="display: flex; gap: 0.5rem;">
+        <button class="btn btn--secondary btn--sm" data-action="restore" data-id="${v.id}">
+          Restore
+        </button>
+        <button class="btn btn--ghost btn--sm" data-action="delete" data-id="${v.id}">
+          Delete
+        </button>
+      </div>
+    </div>
+  `).join('');
+  
+  modal.innerHTML = `
+    <div class="modal__header">
+      <h2 class="modal__title">Version History (${versions.length})</h2>
+      <button class="icon-btn" id="closeVersionsModalBtn">✕</button>
+    </div>
+    <div class="modal__body" style="max-height: 400px; overflow-y: auto;">
+      ${versionsHTML}
+    </div>
+    <div class="modal__footer">
+      <button class="btn btn--secondary" id="exportVersionsBtn">📥 Export All</button>
+      <button class="btn btn--ghost" id="deleteAllVersionsBtn">🗑️ Delete All</button>
+    </div>
+  `;
+  
+  overlay.appendChild(modal);
+  
+  // Event listeners
+  const closeBtn = modal.querySelector('#closeVersionsModalBtn');
+  const exportBtn = modal.querySelector('#exportVersionsBtn');
+  const deleteAllBtn = modal.querySelector('#deleteAllVersionsBtn');
+  
+  closeBtn.addEventListener('click', () => {
+    overlay.classList.remove('modal-overlay--open');
+    setTimeout(() => overlay.remove(), 200);
+  });
+  
+  exportBtn.addEventListener('click', () => {
+    appState.versionHistory?.exportVersions();
+  });
+  
+  deleteAllBtn.addEventListener('click', () => {
+    if (confirm('Are you sure you want to delete all versions? This cannot be undone.')) {
+      appState.versionHistory?.deleteAllVersions();
+      overlay.classList.remove('modal-overlay--open');
+      setTimeout(() => overlay.remove(), 200);
+      showStatus('All versions deleted', 'success');
+    }
+  });
+  
+  // Version item buttons
+  modal.querySelectorAll('[data-action="restore"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.dataset.id);
+      const version = appState.versionHistory?.restoreVersion(id);
+      
+      if (version) {
+        const editor = document.getElementById('markdownEditor');
+        if (editor) {
+          editor.value = version.content;
+          appState.articleMarkdown = version.content;
+          appState.metadata = {
+            keyword: version.keyword || '',
+            language: version.language || 'en',
+            tone: version.tone || 'clear and accessible',
+            length: version.length || 'standard (~1500 words)'
+          };
+          
+          updateMetrics();
+          renderPreview();
+          updateSEOMetrics(version.content, appState.metadata.keyword);
+        }
+        
+        overlay.classList.remove('modal-overlay--open');
+        setTimeout(() => overlay.remove(), 200);
+        showStatus('Version restored', 'success');
+      }
+    });
+  });
+  
+  modal.querySelectorAll('[data-action="delete"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.dataset.id);
+      if (confirm('Delete this version?')) {
+        appState.versionHistory?.deleteVersion(id);
+        overlay.classList.remove('modal-overlay--open');
+        setTimeout(() => overlay.remove(), 200);
+        showVersionHistory(); // Refresh modal
+        showStatus('Version deleted', 'success');
+      }
+    });
+  });
+  
+  return overlay;
+}
+
 function renderPreview() {
   const editor = document.getElementById('markdownEditor');
   const preview = document.getElementById('markdownPreview');
@@ -709,13 +976,70 @@ async function handleGeneratePlan() {
     return;
   }
 
+  const provider = elements.providerSelect?.value;
+  const apiKey = elements.apiKeyInput?.value;
+  const model = elements.modelSelect?.value;
+
+  if (!model || (!apiKey && provider !== 'ollama')) {
+    showStatus('Please configure your API key and model first.', 'error');
+    return;
+  }
+
   appState.isGenerating = true;
   const finishProgress = startProgress();
 
   try {
-    // TODO: Implement plan generation
-    showStatus('Plan generation coming soon!', 'warning');
-    finishProgress(false);
+    const languageSelect = document.getElementById('languageSelect');
+    const toneSelect = document.getElementById('toneSelect');
+    const lengthSelect = document.getElementById('lengthSelect');
+
+    const langConfig = constants.LANGUAGES[languageSelect?.value] || constants.LANGUAGES[constants.DEFAULT_LANGUAGE];
+    
+    const plan = await appState.planService.generatePlan(
+      keyword,
+      langConfig,
+      toneSelect?.value,
+      lengthSelect?.value,
+      provider,
+      model,
+      apiKey
+    );
+
+    // Update plan editor
+    const planEditor = document.getElementById('planEditor');
+    if (planEditor) {
+      planEditor.value = plan;
+      appState.currentPlan = plan;
+      
+      // Update metadata
+      appState.metadata.keyword = keyword;
+      appState.metadata.language = languageSelect?.value;
+      appState.metadata.tone = toneSelect?.value;
+      appState.metadata.length = lengthSelect?.value;
+    }
+
+    // Save version
+    if (appState.versionHistory) {
+      appState.versionHistory.saveVersion(plan, {
+        type: 'plan',
+        keyword,
+        language: langConfig.promptName,
+        tone: toneSelect?.value,
+        length: lengthSelect?.value
+      });
+    }
+
+    showStatus('Plan generated successfully!', 'success');
+    finishProgress(true);
+
+    // Switch to plan tab
+    const tabs = document.querySelector('.tabs');
+    if (tabs) {
+      const planTab = tabs.querySelector('[data-tab-id="plan"]');
+      if (planTab) {
+        planTab.click();
+      }
+    }
   } catch (err) {
     console.error(err);
     showStatus(`Error: ${err.message}`, 'error');

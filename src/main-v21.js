@@ -1139,6 +1139,7 @@ async function handleGeneratePlan() {
     finishProgress(false);
   } finally {
     appState.isGenerating = false;
+    updateActionStates();
     setTimeout(hideStatus, 3000);
   }
 }
@@ -1266,6 +1267,7 @@ async function handleGenerateArticle() {
     finishProgress(false);
   } finally {
     appState.isGenerating = false;
+    updateActionStates();
     setTimeout(hideStatus, 3000);
   }
 }

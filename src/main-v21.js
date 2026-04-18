@@ -10,7 +10,14 @@
  */
 
 import { inject } from '@vercel/analytics';
-inject();
+
+// Initialize Vercel Web Analytics
+// Mode is automatically detected based on environment (development vs production)
+// Debug mode is enabled in development for easier troubleshooting
+inject({
+  mode: import.meta.env.MODE === 'development' ? 'development' : 'production',
+  debug: import.meta.env.MODE === 'development'
+});
 
 import { Button } from './components/Button.js';
 import { Input, Textarea, Select } from './components/Input.js';

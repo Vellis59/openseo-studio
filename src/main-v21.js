@@ -124,6 +124,8 @@ function cacheElements() {
   elements.reloadModelsBtn = document.getElementById('reloadModelsBtn');
   elements.ollamaBaseUrlInput = document.getElementById('ollamaBaseUrl');
   elements.ollamaBaseUrlGroup = document.getElementById('ollamaBaseUrlGroup');
+  elements.sageUrlInput = document.getElementById('sageUrl');
+  elements.sageApiKeyInput = document.getElementById('sageApiKey');
   elements.rememberKeyCheckbox = document.getElementById('rememberKey');
   elements.anonymousModeCheckbox = document.getElementById('anonymousMode');
   elements.exportConfigBtn = document.getElementById('exportConfigBtn');
@@ -185,6 +187,14 @@ function hydrateStateFromStorage() {
     elements.ollamaBaseUrlInput.value = config.ollamaBaseUrl || 'http://localhost:11434';
   }
 
+  // Load Sage config
+  if (elements.sageUrlInput) {
+    elements.sageUrlInput.value = storage.getItem(storage.STORAGE_KEY_SAGE_URL) || '';
+  }
+  if (elements.sageApiKeyInput) {
+    elements.sageApiKeyInput.value = storage.getItem(storage.STORAGE_KEY_SAGE_API_KEY) || '';
+  }
+
   refreshModels();
 }
 
@@ -236,6 +246,14 @@ function setupEventListeners() {
   // Remember key
   if (elements.rememberKeyCheckbox) {
     elements.rememberKeyCheckbox.addEventListener('change', saveApiKey);
+  }
+
+  // Sage config save on change
+  if (elements.sageUrlInput) {
+    elements.sageUrlInput.addEventListener('change', saveSageConfig);
+  }
+  if (elements.sageApiKeyInput) {
+    elements.sageApiKeyInput.addEventListener('change', saveSageConfig);
   }
 
   // Anonymous mode
@@ -296,6 +314,13 @@ function saveApiKey() {
     anonymousMode,
     ollamaBaseUrl
   });
+}
+
+function saveSageConfig() {
+  const url = (elements.sageUrlInput?.value || '').trim().replace(/\/+$/, '');
+  const apiKey = elements.sageApiKeyInput?.value || '';
+  storage.setItemGuarded(storage.STORAGE_KEY_SAGE_URL, url);
+  storage.setItemGuarded(storage.STORAGE_KEY_SAGE_API_KEY, apiKey);
 }
 
 async function refreshModels() {
@@ -478,13 +503,17 @@ function renderConfigureTab(container) {
 
     <label class="form-checkbox" style="margin-bottom: 1rem; display:flex;">
       <input type="checkbox" id="webResearchCheckbox">
-      <span>Enable web research for fresher articles (OpenRouter only)</span>
+      <span>Enable web research via Sage for fresher articles</span>
     </label>
 
+    <div id="sageResearchInfo" style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem; display:none;">
+      <span>🌿 Using Sage instance: <span id="sageInstanceDisplay"></span></span>
+    </div>
+
     <div id="webResearchPreviewGroup" class="form-group" style="display:none; margin-bottom: 1.5rem;">
-      <label class="form-label" for="webResearchOutput">Web research</label>
-      <textarea id="webResearchOutput" class="form-textarea" rows="5" readonly placeholder="Latest web research will appear here before article generation..."></textarea>
-      <small class="form-help">Uses OpenRouter model perplexity/sonar. Automatically skipped for non-OpenRouter providers.</small>
+      <label class="form-label" for="webResearchOutput">Web research &amp; sources</label>
+      <textarea id="webResearchOutput" class="form-textarea" rows="5" readonly placeholder="Web research results from Sage will appear here before article generation..."></textarea>
+      <small class="form-help">Searches the web via your Sage instance and injects findings into the article prompt.</small>
     </div>
 
     <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
@@ -507,6 +536,8 @@ function renderConfigureTab(container) {
   const generateArticleBtn = form.querySelector('#generateArticleBtn');
   const webResearchCheckbox = form.querySelector('#webResearchCheckbox');
   const webResearchPreviewGroup = form.querySelector('#webResearchPreviewGroup');
+  const sageResearchInfo = form.querySelector('#sageResearchInfo');
+  const sageInstanceDisplay = form.querySelector('#sageInstanceDisplay');
 
   if (webResearchCheckbox) {
     webResearchCheckbox.checked = !!appState.metadata.useWebResearch;
@@ -515,9 +546,20 @@ function renderConfigureTab(container) {
       if (webResearchPreviewGroup) {
         webResearchPreviewGroup.style.display = webResearchCheckbox.checked ? 'block' : 'none';
       }
+      if (sageResearchInfo) {
+        sageResearchInfo.style.display = webResearchCheckbox.checked && elements.sageUrlInput?.value ? 'block' : 'none';
+      }
     });
     if (webResearchPreviewGroup) {
       webResearchPreviewGroup.style.display = webResearchCheckbox.checked ? 'block' : 'none';
+    }
+    // Show Sage instance info on initial render if configured
+    if (sageResearchInfo && sageInstanceDisplay) {
+      const sageUrl = elements.sageUrlInput?.value || '';
+      if (sageUrl && webResearchCheckbox.checked) {
+        sageResearchInfo.style.display = 'block';
+        sageInstanceDisplay.textContent = sageUrl;
+      }
     }
   }
 
@@ -1124,9 +1166,9 @@ async function handleGeneratePlan() {
     const langConfig = constants.LANGUAGES[languageSelect?.value] || constants.LANGUAGES[constants.DEFAULT_LANGUAGE];
     const useWebResearch = !!document.getElementById('webResearchCheckbox')?.checked;
 
-    if (provider === 'openrouter' && useWebResearch) {
-      showStatus('Running web research before plan generation...', 'loading');
-      await fetchWebResearch({ keyword, apiKey });
+    if (useWebResearch) {
+      showStatus('Running web research via Sage before plan generation...', 'loading');
+      await fetchWebResearch({ keyword });
     } else {
       appState.metadata.webResearch = '';
       const researchOutput = document.getElementById('webResearchOutput');
@@ -1230,10 +1272,10 @@ async function handleGenerateArticle() {
     const ollamaBaseUrl = elements.ollamaBaseUrlInput?.value || '';
     const useWebResearch = !!document.getElementById('webResearchCheckbox')?.checked;
 
-    if (provider === 'openrouter' && useWebResearch && !appState.metadata.webResearch) {
-      showStatus('Running web research before article generation...', 'loading');
-      await fetchWebResearch({ keyword, apiKey });
-    } else if (provider !== 'openrouter') {
+    if (useWebResearch && !appState.metadata.webResearch) {
+      showStatus('Running web research via Sage before article generation...', 'loading');
+      await fetchWebResearch({ keyword });
+    } else if (!useWebResearch) {
       appState.metadata.webResearch = '';
     }
 
@@ -1329,29 +1371,73 @@ async function handleGenerateArticle() {
   }
 }
 
-async function fetchWebResearch({ keyword, apiKey }) {
+async function fetchWebResearch({ keyword }) {
   const researchOutput = document.getElementById('webResearchOutput');
-  const researchPrompt = [
-    `Find the most recent and useful information about: ${keyword}.`,
-    'Return a concise research brief in Markdown.',
-    'Include recent facts, trends, notable updates, and practical points relevant for writing an up-to-date article.',
-    'If possible, structure as: Recent updates, Key facts, Important trends, Cautions.'
-  ].join(' ');
+  const sageUrl = (storage.getItem(storage.STORAGE_KEY_SAGE_URL) || 'https://sage.vellis.cc').replace(/\/+$/, '');
+  const sageApiKey = storage.getItem(storage.STORAGE_KEY_SAGE_API_KEY) || '';
 
-  const research = await api.callChatProvider({
-    provider: 'openrouter',
-    model: 'perplexity/sonar',
-    apiKey,
-    body: {
-      model: 'perplexity/sonar',
-      messages: [{ role: 'user', content: researchPrompt }],
-      temperature: 0.2
+  if (!sageUrl) {
+    appState.metadata.webResearch = '';
+    if (researchOutput) researchOutput.value = 'Sage URL not configured. Add it in Settings.';
+    return '';
+  }
+
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (sageApiKey) {
+      headers['X-API-Key'] = sageApiKey;
     }
-  });
 
-  appState.metadata.webResearch = research;
-  if (researchOutput) researchOutput.value = research;
-  return research;
+    const response = await fetch(`${sageUrl}/api/public/search`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        query: keyword,
+        mode: 'web',
+        maxSources: 8,
+        lang: 'fr'
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Sage API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const sources = data.sources || [];
+
+    // Format a concise research brief from Sage results
+    let researchText = `## Web Research: "${keyword}"\n\n`;
+    researchText += `*Source: Sage search via ${sageUrl}*\n\n`;
+
+    if (sources.length > 0) {
+      researchText += '### Sources found:\n\n';
+      sources.forEach((s, i) => {
+        const credibility = s.credibility?.level || 'unknown';
+        const badge = credibility === 'high' ? '✅' : credibility === 'medium' ? '📝' : credibility === 'low' ? '⚠️' : '❓';
+        researchText += `${badge} **${s.title || 'Untitled'}**\n`;
+        researchText += `   URL: ${s.url}\n`;
+        researchText += `   ${s.snippet || ''}\n\n`;
+      });
+
+      // Also include Sage's AI response if available
+      if (data.response) {
+        researchText += `### AI Research Summary:\n\n${data.response}\n\n`;
+      }
+    } else {
+      researchText += 'No web sources found via Sage search.\n';
+    }
+
+    appState.metadata.webResearch = researchText;
+    if (researchOutput) researchOutput.value = researchText;
+    return researchText;
+  } catch (err) {
+    console.error('Sage web research failed:', err);
+    const fallbackText = `Web research unavailable: ${err.message}. Proceeding without research data.`;
+    appState.metadata.webResearch = '';
+    if (researchOutput) researchOutput.value = fallbackText;
+    return '';
+  }
 }
 
 function updateSEOMetrics(content, keyword) {

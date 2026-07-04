@@ -19,7 +19,8 @@ export const STORAGE_KEY_GHOST_ADMIN_URL = "openseo_ghost_admin_url";
 export const STORAGE_KEY_GHOST_ADMIN_KEY = "openseo_ghost_admin_key";
 export const STORAGE_KEY_GHOST_REMEMBER = "openseo_ghost_remember";
 export const STORAGE_KEY_WP_CONFIG = "openseo_wordpress_config";
-
+export const STORAGE_KEY_SAGE_URL = "openseo_sage_url";
+export const STORAGE_KEY_SAGE_API_KEY = "openseo_sage_api_key";
 export const MAX_HISTORY_ITEMS = 20;
 
 let isAnonymous = false;

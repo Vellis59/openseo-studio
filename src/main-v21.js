@@ -126,6 +126,9 @@ function cacheElements() {
   elements.ollamaBaseUrlGroup = document.getElementById('ollamaBaseUrlGroup');
   elements.sageUrlInput = document.getElementById('sageUrl');
   elements.sageApiKeyInput = document.getElementById('sageApiKey');
+  elements.searchProviderSelect = document.getElementById('searchProviderSelect');
+  elements.searchApiKeyInput = document.getElementById('searchApiKeyInput');
+  elements.sageUrlGroup = document.getElementById('sageUrlGroup');
   elements.rememberKeyCheckbox = document.getElementById('rememberKey');
   elements.anonymousModeCheckbox = document.getElementById('anonymousMode');
   elements.exportConfigBtn = document.getElementById('exportConfigBtn');
@@ -187,13 +190,23 @@ function hydrateStateFromStorage() {
     elements.ollamaBaseUrlInput.value = config.ollamaBaseUrl || 'http://localhost:11434';
   }
 
-  // Load Sage config
+  // Load search config
+  const searchProvider = storage.getItem(storage.STORAGE_KEY_SEARCH_PROVIDER) || 'tavily';
+  const searchApiKey = storage.getItem(storage.STORAGE_KEY_SEARCH_API_KEY) || '';
+  if (elements.searchProviderSelect) {
+    elements.searchProviderSelect.value = searchProvider;
+  }
+  if (elements.searchApiKeyInput) {
+    elements.searchApiKeyInput.value = searchApiKey;
+  }
   if (elements.sageUrlInput) {
     elements.sageUrlInput.value = storage.getItem(storage.STORAGE_KEY_SAGE_URL) || '';
   }
   if (elements.sageApiKeyInput) {
     elements.sageApiKeyInput.value = storage.getItem(storage.STORAGE_KEY_SAGE_API_KEY) || '';
   }
+  // Show/hide Sage URL field based on provider
+  toggleSageUrlField(searchProvider);
 
   refreshModels();
 }
@@ -248,12 +261,21 @@ function setupEventListeners() {
     elements.rememberKeyCheckbox.addEventListener('change', saveApiKey);
   }
 
-  // Sage config save on change
+  // Search config save on change
+  if (elements.searchProviderSelect) {
+    elements.searchProviderSelect.addEventListener('change', () => {
+      saveSearchConfig();
+      toggleSageUrlField(elements.searchProviderSelect.value);
+    });
+  }
+  if (elements.searchApiKeyInput) {
+    elements.searchApiKeyInput.addEventListener('change', saveSearchConfig);
+  }
   if (elements.sageUrlInput) {
-    elements.sageUrlInput.addEventListener('change', saveSageConfig);
+    elements.sageUrlInput.addEventListener('change', saveSearchConfig);
   }
   if (elements.sageApiKeyInput) {
-    elements.sageApiKeyInput.addEventListener('change', saveSageConfig);
+    elements.sageApiKeyInput.addEventListener('change', saveSearchConfig);
   }
 
   // Anonymous mode
@@ -316,11 +338,21 @@ function saveApiKey() {
   });
 }
 
-function saveSageConfig() {
-  const url = (elements.sageUrlInput?.value || '').trim().replace(/\/+$/, '');
-  const apiKey = elements.sageApiKeyInput?.value || '';
-  storage.setItemGuarded(storage.STORAGE_KEY_SAGE_URL, url);
-  storage.setItemGuarded(storage.STORAGE_KEY_SAGE_API_KEY, apiKey);
+function saveSearchConfig() {
+  const provider = elements.searchProviderSelect?.value || 'tavily';
+  const apiKey = elements.searchApiKeyInput?.value || '';
+  const sageUrl = (elements.sageUrlInput?.value || '').trim().replace(/\/+$/, '');
+  const sageApiKey = elements.sageApiKeyInput?.value || '';
+  storage.setItemGuarded(storage.STORAGE_KEY_SEARCH_PROVIDER, provider);
+  storage.setItemGuarded(storage.STORAGE_KEY_SEARCH_API_KEY, apiKey);
+  storage.setItemGuarded(storage.STORAGE_KEY_SAGE_URL, sageUrl);
+  storage.setItemGuarded(storage.STORAGE_KEY_SAGE_API_KEY, sageApiKey);
+}
+
+function toggleSageUrlField(provider) {
+  if (elements.sageUrlGroup) {
+    elements.sageUrlGroup.style.display = provider === 'sage' || provider === 'searxng' ? 'block' : 'none';
+  }
 }
 
 async function refreshModels() {
@@ -540,27 +572,30 @@ function renderConfigureTab(container) {
   const sageInstanceDisplay = form.querySelector('#sageInstanceDisplay');
 
   if (webResearchCheckbox) {
-    webResearchCheckbox.checked = !!appState.metadata.useWebResearch;
-    webResearchCheckbox.addEventListener('change', () => {
-      appState.metadata.useWebResearch = webResearchCheckbox.checked;
-      if (webResearchPreviewGroup) {
-        webResearchPreviewGroup.style.display = webResearchCheckbox.checked ? 'block' : 'none';
-      }
-      if (sageResearchInfo) {
-        sageResearchInfo.style.display = webResearchCheckbox.checked && elements.sageUrlInput?.value ? 'block' : 'none';
-      }
-    });
+  webResearchCheckbox.checked = !!appState.metadata.useWebResearch;
+  webResearchCheckbox.addEventListener('change', () => {
+    appState.metadata.useWebResearch = webResearchCheckbox.checked;
     if (webResearchPreviewGroup) {
       webResearchPreviewGroup.style.display = webResearchCheckbox.checked ? 'block' : 'none';
     }
-    // Show Sage instance info on initial render if configured
-    if (sageResearchInfo && sageInstanceDisplay) {
-      const sageUrl = elements.sageUrlInput?.value || '';
-      if (sageUrl && webResearchCheckbox.checked) {
-        sageResearchInfo.style.display = 'block';
-        sageInstanceDisplay.textContent = sageUrl;
+    if (sageResearchInfo) {
+      const provider = elements.searchProviderSelect?.value || 'tavily';
+      sageResearchInfo.style.display = webResearchCheckbox.checked ? 'block' : 'none';
+      if (sageInstanceDisplay) {
+        sageInstanceDisplay.textContent = provider.charAt(0).toUpperCase() + provider.slice(1);
       }
     }
+  });
+  if (webResearchPreviewGroup) {
+    webResearchPreviewGroup.style.display = webResearchCheckbox.checked ? 'block' : 'none';
+  }
+  if (sageResearchInfo && sageInstanceDisplay) {
+    if (webResearchCheckbox.checked) {
+      sageResearchInfo.style.display = 'block';
+      const provider = elements.searchProviderSelect?.value || 'tavily';
+      sageInstanceDisplay.textContent = provider.charAt(0).toUpperCase() + provider.slice(1);
+    }
+  }
   }
 
   if (generatePlanBtn) {
@@ -1373,67 +1408,102 @@ async function handleGenerateArticle() {
 
 async function fetchWebResearch({ keyword }) {
   const researchOutput = document.getElementById('webResearchOutput');
-  const sageUrl = (storage.getItem(storage.STORAGE_KEY_SAGE_URL) || 'https://sage.vellis.cc').replace(/\/+$/, '');
+  const provider = storage.getItem(storage.STORAGE_KEY_SEARCH_PROVIDER) || 'tavily';
+  const apiKey = storage.getItem(storage.STORAGE_KEY_SEARCH_API_KEY) || '';
+  const sageUrl = (storage.getItem(storage.STORAGE_KEY_SAGE_URL) || '').replace(/\/+$/, '');
   const sageApiKey = storage.getItem(storage.STORAGE_KEY_SAGE_API_KEY) || '';
 
-  if (!sageUrl) {
-    appState.metadata.webResearch = '';
-    if (researchOutput) researchOutput.value = 'Sage URL not configured. Add it in Settings.';
+  if (provider === 'sage' && !sageUrl) {
+    if (researchOutput) researchOutput.value = 'Sage URL not configured. Select another provider or set Sage URL in Settings.';
+    return '';
+  }
+  if (provider === 'searxng' && !sageUrl) {
+    if (researchOutput) researchOutput.value = 'SearXNG URL not configured. Select another provider or set your SearXNG URL in Settings.';
+    return '';
+  }
+  const needsKey = provider !== 'sage' && provider !== 'searxng';
+  if (needsKey && !apiKey) {
+    if (researchOutput) researchOutput.value = `No API key configured for ${provider}. Add it in Settings → Web Search.`;
     return '';
   }
 
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (sageApiKey) {
-      headers['X-API-Key'] = sageApiKey;
+    let sources = [];
+    let responseText = '';
+
+    if (provider === 'tavily') {
+      const res = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({ query: keyword, search_depth: 'advanced', include_answer: false, max_results: 8 })
+      });
+      if (!res.ok) throw new Error(`Tavily error ${res.status}`);
+      const data = await res.json();
+      sources = (data.results || []).map(r => ({ title: r.title, url: r.url, content: r.content }));
+    } else if (provider === 'serper') {
+      const res = await fetch('https://google.serper.dev/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-KEY': apiKey },
+        body: JSON.stringify({ q: keyword, num: 8 })
+      });
+      if (!res.ok) throw new Error(`Serper error ${res.status}`);
+      const data = await res.json();
+      sources = (data.organic || []).map(r => ({ title: r.title, url: r.link, content: r.snippet }));
+    } else if (provider === 'brave') {
+      const res = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(keyword)}&count=8&safesearch=off`, {
+        headers: { 'Accept': 'application/json', 'X-Subscription-Token': apiKey }
+      });
+      if (!res.ok) throw new Error(`Brave error ${res.status}`);
+      const data = await res.json();
+      sources = (data.web?.results || []).map(r => ({ title: r.title, url: r.url, content: r.description }));
+    } else if (provider === 'searxng') {
+      const endpoint = (sageUrl || 'http://localhost:8888').replace(/\/+$/, '');
+      const res = await fetch(`${endpoint}/search?q=${encodeURIComponent(keyword)}&format=json&language=fr&categories=general`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!res.ok) throw new Error(`SearXNG error ${res.status}`);
+      const data = await res.json();
+      sources = (data.results || []).map(r => ({ title: r.title, url: r.url, content: r.content }));
+    } else if (provider === 'sage') {
+      const headers = { 'Content-Type': 'application/json' };
+      if (sageApiKey) headers['X-API-Key'] = sageApiKey;
+      const res = await fetch(`${sageUrl}/api/public/search`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ query: keyword, mode: 'web', maxSources: 8, lang: 'fr' })
+      });
+      if (!res.ok) throw new Error(`Sage API error: ${res.status}`);
+      const data = await res.json();
+      sources = (data.sources || []).map(s => ({ title: s.title, url: s.url, content: s.snippet }));
+      responseText = data.response || '';
     }
 
-    const response = await fetch(`${sageUrl}/api/public/search`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        query: keyword,
-        mode: 'web',
-        maxSources: 8,
-        lang: 'fr'
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Sage API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const sources = data.sources || [];
-
-    // Format a concise research brief from Sage results
+    // Format the research brief
     let researchText = `## Web Research: "${keyword}"\n\n`;
-    researchText += `*Source: Sage search via ${sageUrl}*\n\n`;
+    researchText += `*Source: ${provider} search*\n\n`;
 
     if (sources.length > 0) {
       researchText += '### Sources found:\n\n';
       sources.forEach((s, i) => {
-        const credibility = s.credibility?.level || 'unknown';
-        const badge = credibility === 'high' ? '✅' : credibility === 'medium' ? '📝' : credibility === 'low' ? '⚠️' : '❓';
-        researchText += `${badge} **${s.title || 'Untitled'}**\n`;
+        const snippet = (s.content || '').slice(0, 300);
+        researchText += `**${s.title || 'Untitled'}**\n`;
         researchText += `   URL: ${s.url}\n`;
-        researchText += `   ${s.snippet || ''}\n\n`;
+        if (snippet) researchText += `   ${snippet}\n`;
+        researchText += '\n';
       });
-
-      // Also include Sage's AI response if available
-      if (data.response) {
-        researchText += `### AI Research Summary:\n\n${data.response}\n\n`;
+      if (responseText) {
+        researchText += `### AI Research Summary:\n\n${responseText}\n\n`;
       }
     } else {
-      researchText += 'No web sources found via Sage search.\n';
+      researchText += 'No web sources found.\n';
     }
 
     appState.metadata.webResearch = researchText;
     if (researchOutput) researchOutput.value = researchText;
     return researchText;
   } catch (err) {
-    console.error('Sage web research failed:', err);
-    const fallbackText = `Web research unavailable: ${err.message}. Proceeding without research data.`;
+    console.error(`${provider} web research failed:`, err);
+    const fallbackText = `Web research unavailable (${provider}: ${err.message}). Proceeding without research data.`;
     appState.metadata.webResearch = '';
     if (researchOutput) researchOutput.value = fallbackText;
     return '';

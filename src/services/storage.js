@@ -21,6 +21,8 @@ export const STORAGE_KEY_GHOST_REMEMBER = "openseo_ghost_remember";
 export const STORAGE_KEY_WP_CONFIG = "openseo_wordpress_config";
 export const STORAGE_KEY_SAGE_URL = "openseo_sage_url";
 export const STORAGE_KEY_SAGE_API_KEY = "openseo_sage_api_key";
+export const STORAGE_KEY_SEARCH_PROVIDER = "openseo_search_provider";
+export const STORAGE_KEY_SEARCH_API_KEY = "openseo_search_api_key";
 export const MAX_HISTORY_ITEMS = 20;
 
 let isAnonymous = false;

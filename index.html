@@ -142,16 +142,27 @@
         </label>
 
         <div class="card" style="margin-top: 1rem; padding: 0.75rem;">
-          <h4 style="font-size: 0.8rem; font-weight: 600; margin: 0 0 0.5rem;">🌿 Sage Research</h4>
+          <h4 style="font-size: 0.8rem; font-weight: 600; margin: 0 0 0.5rem;">🌐 Web Search for Research</h4>
           <div class="form-group" style="margin-bottom: 0.5rem;">
-            <label class="form-label" for="sageUrl" style="font-size: 0.8rem;">Sage Instance URL</label>
-            <input type="url" id="sageUrl" class="form-input" placeholder="https://sage.vellis.cc" autocomplete="off">
-            <small class="form-help">Your Sage search instance URL</small>
+            <label class="form-label" for="searchProviderSelect" style="font-size: 0.8rem;">Search Provider</label>
+            <select id="searchProviderSelect" class="form-select">
+              <option value="tavily">Tavily</option>
+              <option value="serper">Serper</option>
+              <option value="brave">Brave Search</option>
+              <option value="searxng">SearXNG (self-hosted)</option>
+              <option value="sage">Sage (self-hosted)</option>
+            </select>
+            <small class="form-help">Used for web research before article generation</small>
           </div>
           <div class="form-group">
-            <label class="form-label" for="sageApiKey" style="font-size: 0.8rem;">Sage API Key (optional)</label>
-            <input type="password" id="sageApiKey" class="form-input" placeholder="Required if Sage has an API key set">
-            <small class="form-help">Only if your Sage instance requires one</small>
+            <label class="form-label" for="searchApiKeyInput" style="font-size: 0.8rem;">Search API Key</label>
+            <input type="password" id="searchApiKeyInput" class="form-input" placeholder="tvly-... / serper key / brave key">
+            <small class="form-help">Required for Tavily, Serper, or Brave. Not needed for Sage.</small>
+          </div>
+          <div class="form-group" id="sageUrlGroup" style="display:none; margin-top: 0.5rem;">
+            <label class="form-label" for="sageUrl" style="font-size: 0.8rem;">Instance URL</label>
+            <input type="url" id="sageUrl" class="form-input" placeholder="https://sage.vellis.cc or http://192.168.1.x:8888">
+            <small class="form-help">URL of your SearXNG or Sage instance</small>
           </div>
         </div>
 
